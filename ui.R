@@ -4,8 +4,9 @@ library(shinyAce)
 options(warn=-1)
 modes <- getAceModes()
 themes <- getAceThemes()
-MAXIMUM_LOSS<<--99999999999
+MAXIMUM_LOSS<<--99999999999999
 trans_generaed<<-0
+displayList<-c("expo","power","log","combo")
 shinyUI(fluidPage(
   img(src="logo.jpg", height = 50, width = 200),
 #   titlePanel("Mean-Variance Framework and Exponential Utility Function"),    
@@ -66,7 +67,7 @@ shinyUI(fluidPage(
                         value = 4)),  helpText("Note:All the below inputs are comma delimited"),
     column(2,textInput("asset_name1", label = h3("Names of each Asset"), value = "CLO,senior_loan,NPL1stpay,cash")),
     column(2,textInput("asset_ret1", label = h3("Return of each asset"), value = "0.08,0.04,0.04,0.0045")),
-    column(2,textInput("asset_var1", label = h3("Variance of each asset"), value="0.007225,0.000625,0.000625,0")),
+    column(2,textInput("asset_vol1", label = h3("Volatility of each asset"), value="0.085,0.025,0.025,0")),
     column(2,textInput("asset_corr1", label = h3("correlation of each asset"), value = "0.6,0.6,0,0.6,0,0"))
    
 ),
@@ -96,24 +97,30 @@ hr(),
 titlePanel("3.Set Transaction Cost & Finance cost"),
 sidebarLayout(
   sidebarPanel(
-    textInput("principal1", label = h3("Principal($M)"), value = "2669"),
+    numericInput("principal1", label = h3("Principal($M)"), value = 2669),
     helpText("How much money we hold right now"),
     textInput("w_now", label = h3("Present Portofolio Position"), value = "0,0,0,0"),
     helpText("present portofolio position,comma delimited"),
     textInput("w1", label = h3("Tentative Portofolio Position"), value = "0,0.25,0.25,0"),
     helpText("The portofolio position you would like to change to,click compute transaction cost to see how much you should pay for position change,comma delimited"),
-    numericInput("con_number", label = h3("Discrete Condition Number"), value = 1),
+    numericInput("con_number", label = h3("Number of transaction cost condition nodes"), value = 1),
+    numericInput("con_number2", label = h3("Number of finance cost condition nodes"), value = 1),
     helpText("You can make your piecewise linear assumption here,input the number of your intervals"),
     textInput("condtion_name", label = h3("Interval Spread"), value = "!=0"),
-    actionButton("go4","generate cost Matrix")
+    textInput("condtion_name2", label = h3("Interval Spread"), value = "!=0"),
+    actionButton("go4","generate transcation cost Matrix"),
+    actionButton("go7","generate finance cost Matrix")
     ),
   mainPanel(
     tabPanel("trans_cost"
-             ,h4("Transaction Cost and Finance Cost matrix")
+             ,h4("Transaction Cost matrix")
              ,div(class="well container-fluid"
                   ,hotable("hotable1")
-             )),
-    helpText("the beginning N lines are transaction cost and the following N lines are finance cost"),
+             )),  
+    tabPanel("finan_cost" ,h4("Finance Cost matrix")
+               ,div(class="well container-fluid"
+               ,hotable("hotable5")
+               )),
     titlePanel("How much you will spend on transaction cost and finance cost"), 
     actionButton("go3","start to compute transaction cost and finance cost"),
     textOutput("tentative_transcost")
@@ -135,20 +142,21 @@ sidebarLayout(
    helpText("Make these two scenarios indifference to you")
     ),
    conditionalPanel("input.uti=='combo'",
-                    sliderInput("x_range2", label = h3("Show utility in the range"), min = -1, max = 1, step=0.01,value = c(-0.3, 0.2)),
-                    numericInput("x_extreme",label = h3("extreme loss tolerance"),step=0.01,value = -0.3),
+                  numericInput("x_extreme",label = h3("extreme loss tolerance"),step=0.01,value = -0.3),
      numericInput("x_downturning",label = h3("downside turning return"),step=0.01,value = -0.05),
      numericInput("x_mid2",label = h3("mid return between downside and upside return"),step=0.01,value = 0),
      numericInput("x_upturning",label = h3("upside turning return"),step=0.01,value = 0.05),
    numericInput("prob2",label = h3("prob to get downside return"),step=0.01,value = 0.8),
-   helpText("This assumes when a PM has a small negative return or a small positive return, you will be risk seeking to get more positive return."),
-   helpText("downside turning return means before you lose this much you are risk seeking, after that you are risk averse"),
-   helpText("upside turning return means before you win this much you are risk seeking, after that you are risk averse"),
+   helpText("This assumes when a PM has a small negative return or a small positive return, he will be risk seeking to get more positive return."),
+   helpText("downside turning return means before you lose this much he is risk seeking, after that he is risk averse"),
+   helpText("upside turning return means before you win this much he is risk seeking, after that he is risk averse"),
    helpText("Mid return and probability to fail is the same idea as other three functions,to make yourself indifference between these two scenarios"))
    
    ),  
     mainPanel(
-      conditionalPanel("input.uti=='combo'",hr(),plotOutput("utility_out2")),
+      conditionalPanel("input.uti=='combo'",hr(), 
+                       sliderInput("x_range2", label = h3("Show utility in the range"), min = -1, max = 1, step=0.01,value = c(-0.3, 0.2)),
+                       plotOutput("utility_out2")),
       conditionalPanel("input.uti!='combo'",
 #       titlePanel("Based on your input suggested lambda is:"), 
 #       textOutput("tentative_lambda"),
@@ -189,10 +197,10 @@ fluidRow(
 #  return(h)
 #}")),
   column(6,aceEditor("linear_bounds", value="##input linear bounds here
-eval_h0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,principal11=principal1)
-{
-  return(sum(w1)-1)
-}")),
+#eval_h0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,principal11=principal1)
+#{
+#  return(sum(w1)-1)
+#}")),
   column(2,actionButton("go2","start to compute"))
   ),
 hr()
@@ -204,7 +212,15 @@ sidebarLayout(
 textInput("ks", label = h3("probabilities of at least one extreme events to happen"), value = "0.2,0.5"),
 helpText("Above are the lambdas and subjective_ks you are interested in,you may input multiple lambdas and ks,comma delimited"),
   checkboxGroupInput("uti2", label = h3("Utility function typies you are interested in"), 
-                               choices = list("Exponential Utility" = 'expo', "Power Utility" = 'power', "Log Utility" = 'log'), selected = 'expo'),
+                               choices = list("Exponential Utility" = 'expo', "Power Utility" = 'power', "Log Utility" = 'log',"Risk seeking combination"='combo'), selected = 'expo'),
+  conditionalPanel(condition="input.uti2.indexOf('combo')>-1",hr(),
+                   helpText("Below is just for COMBO function"),
+                   numericInput("x_extreme2",label = h3("extreme loss tolerance"),step=0.01,value = -0.3),
+                   numericInput("x_downturning2",label = h3("downside turning return"),step=0.01,value = -0.05),
+                   numericInput("x_mid22",label = h3("mid return between downside and upside return"),step=0.01,value = 0),
+                   numericInput("x_upturning2",label = h3("upside turning return"),step=0.01,value = 0.05),
+                   numericInput("prob22",label = h3("prob to get downside return"),step=0.01,value = 0.8)
+                   ),hr(),
   sliderInput("sample_number2", label = h3("number of samples to generate"),min = 10000, max = 1000000,step=10000, value =50000),
   actionButton("go9","click here to show tables"),
   radioButtons("filetype", "File type:",choices = c("csv", "tsv")),
@@ -212,7 +228,9 @@ helpText("Above are the lambdas and subjective_ks you are interested in,you may 
  helpText("This download function is only available when open in browser")
   ),mainPanel(
     titlePanel("The optimized weights of the assets are:"),
-tableOutput("hotable3")))
+    conditionalPanel(condition="input.uti2.indexOf('expo')>-1||input.uti2.indexOf('log')>-1||input.uti2.indexOf('power')>-1",tableOutput("hotable3")),
+    conditionalPanel(condition="input.uti2.indexOf('combo')>-1",hr(),titlePanel("Using Combination Utility function:"),tableOutput("hotable4"))
+))
 
 )
 )
