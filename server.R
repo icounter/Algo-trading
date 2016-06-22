@@ -131,7 +131,10 @@ shinyServer(
                    position = position_dodge(0.9), size=5)
       })
     con_tabe<-eventReactive(input$go5,{
-      return(t(bayesian_matrix1))
+      bayesian_matrix1<-data.frame(t(bayesian_matrix1))
+      bayesian_matrix1[,1]<-sprintf("%.6f",bayesian_matrix1[,1])
+      bayesian_matrix1[,2:ncol(bayesian_matrix1)]<-as.data.frame(lapply(bayesian_matrix1[,2:ncol(bayesian_matrix1)], format_num))
+      return(bayesian_matrix1)
     })
     format_num <- function(col) {
       if (is.numeric(col))
@@ -140,14 +143,12 @@ shinyServer(
         col
     }
     
-    output$hotable2 <- renderTable({
-      bayesian_matrix1<-data.frame(con_tabe())
-      bayesian_matrix1[,1]<-sprintf("%.6f",bayesian_matrix1[,1])
-      bayesian_matrix1[,2:ncol(bayesian_matrix1)]<-as.data.frame(lapply(bayesian_matrix1[,2:ncol(bayesian_matrix1)], format_num))
-      return(bayesian_matrix1)
-      
+    output$hotable2 <- DT::renderDataTable(
+      DT::datatable(con_tabe(), options = list(
+        lengthMenu = list(c(5, 15, -1), c('5', '15', 'All')),
+        pageLength = 15
       #colnames(bayesian_matrix2)
-    }, readOnly = TRUE)
+    )))
     
     plot_bay<-eventReactive(input$go6,{
       cond_tab=build_cond(affect_relation=input$affect_relation,prob_table=input$prob_table)
@@ -380,11 +381,11 @@ shinyServer(
     })
     weights2<-eventReactive(input$go2,{
       if(input$uti!="combo"){
-      call_scenario_cost_BN(input$uti,input$assets_num1,input$lambda1,input$asset_ret1,input$asset_vol1,
+        call_scenario_cost_BN(input$uti,input$assets_num1,input$lambda1,input$asset_ret1,input$asset_vol1,
                             input$asset_corr1,input$sample_number1,input$extreme_stress_loss,pro_dict,
                             input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$subjective_k,
                             input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval)}else{
-      call_scenario_cost_BN2(input$assets_num1,input$x_extreme,input$x_downturning,input$x_mid2,input$x_upturning,input$prob2,input$asset_ret1,input$asset_vol1,
+        call_scenario_cost_BN2(input$assets_num1,input$x_extreme,input$x_downturning,input$x_mid2,input$x_upturning,input$prob2,input$asset_ret1,input$asset_vol1,
                                                     input$asset_corr1,input$sample_number1,input$extreme_stress_loss,pro_dict,
                                                     input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$subjective_k,
                                                     input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval)
@@ -400,15 +401,25 @@ shinyServer(
         geom_bar(stat="identity", position=position_dodge())+
         geom_text(aes(label=round(weights,digits = 4),x=asset_name), vjust=1.6, size=5)
     })
-#     outplot$tablle<-renderTable({
-#       ww_1<-weights2$weights
-#       
-#     })
-    
-    
-    
-    
-    
+    format_num8 <- function(col) {
+      if (is.numeric(col))
+        sprintf('%.4f', col)
+      else
+        col
+    }
+    output$tablle<-renderTable({
+      weights3<<-weights2()
+       ww_1<-weights3$weights[-length(weights3$weights)]
+       mat=cost2(w_now,ww_1,trans_cost,finan_cost,principal1)
+       colnames(mat)<-c("trans_cost","finance_cost")
+       mat<-data.frame(mat)
+       name<-as.character(weights3$asset_name)
+       mat<-cbind(name[-length(name)],mat)
+       colnames(mat)[1]="name"
+       mat[,2:ncol(mat)]<-as.data.frame(lapply(mat[,2:ncol(mat)], format_num8))
+       return(mat)
+     }, readOnly = TRUE)
+
     get_weights_matrix<-eventReactive(input$go9,{
       if(length(which(input$uti2=='combo'))==0){
                 weights_matrix<<-call_scenario_cost_BN_matrix(input$uti2,input$assets_num1,input$lambdas,input$asset_ret1,input$asset_vol1,

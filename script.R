@@ -193,24 +193,25 @@ cost<-function(w_now,w_1,trans_cost,finan_cost,principal1=2293){
     return(ret_sum)
   }
 }
-cost2<-function(w_now,w_1,trans_cost,principal1=2293){
+cost2<-function(w_now,w_1,trans_cost,finan_cost,principal1=2293){
   ##cash position at MM
   N<-length(w_now)
   mat<-matrix(0,nrow=N,ncol=2)
-  N_con<-ncol(trans_cost)
-  principal1<<-as.double(principal1)
-  if(length(N_con)==0) {
+  N_tran_con<-ncol(trans_cost)
+  N_fina_con<-ncol(finan_cost)
+  if(length(N_tran_con)==0&&length(N_fina_con)==0) {
     return(mat)
   }else{
-    con<-colnames(trans_cost)[2:N_con]
+    con<-colnames(trans_cost)[2:N_tran_con]
     delta_w<-(w_1-w_now)*principal1
     ret_sum<-0
     for(j in 1:N){
-      for(i in 1:(N_con-1)){
-        if(i==1||i==(N_con-1)) {
+      for(i in 1:(N_tran_con-1)){
+        if(i==1||i==(N_tran_con-1)) {
           aa<-paste0(abs(delta_w[j]),con[i])
           if(eval(parse(text=aa))){
             mat[j,1]=mat[j,1]+trans_cost[j,i+1]*abs(w_now[j]-w_1[j])
+            
           }}
         else{
           aa<-paste0(abs(delta_w[j]),con[i],abs(delta_w[j]))
@@ -219,45 +220,54 @@ cost2<-function(w_now,w_1,trans_cost,principal1=2293){
           }}
       }
     }
-    
-    
-    
-    
-    
-#     i=0 
-#     index=which(w_1>0) 
-#     w_1=w_1[index]
-#     leverage1=sum(w_1)-1
-#     trans_cost2=trans_cost[(N+1):(2*N),]
-#     trans_cost2=trans_cost2[index,]
-#     while(leverage1>0&&i<=length(w_1)){
-#       remain1=(leverage1)*principal1
-#       for(jj in 1:(N_con-1)){
-#         if(jj==1||jj==(N_con-1)) {
-#           aa<-paste0(remain1,con[jj])
-#           if(eval(parse(text=aa))){
-#             break;
-#           }
-#           else{
-#             aa<-paste0(remain1,con[jj],remain1)
-#             if(eval(parse(text=aa))){
-#               break;
-#             }
-#           }
-#         }
-#       }
-#       a=which.max(trans_cost2[1:(length(index)-i),jj+1])
-#       i=i+1
-#       if((leverage1-w_1[a])<=0){
-#         ret_sum=ret_sum+trans_cost2[a,jj+1]*leverage1
-#         leverage1=-1
-#       }else{
-#         ret_sum=ret_sum+trans_cost2[a,jj+1]*w_1[a]
-#         leverage1=leverage1-w_1[a]
-#       }
-#       w_1=w_1[-a]
-#       trans_cost2=trans_cost2[-a,]
-#     }
+    i=0
+    M=4
+    con2<-colnames(finan_cost)[2:N_fina_con]
+    list=which(w_1<0)
+    leverage1=sum(w_1[which(w_1>0)])-1
+    finan_cost2=finan_cost
+    while(leverage1>0&&i<=length(w_1)){
+      remain1=(leverage1)*principal1
+      for(jj in 1:(N_fina_con-1)){
+        if(jj==1||jj==(N_fina_con-1)) {
+          aa<-paste0(remain1,con2[jj])
+          if(eval(parse(text=aa))){
+            break;
+          }
+          else{
+            aa<-paste0(remain1,con2[jj],remain1)
+            if(eval(parse(text=aa))){
+              break;
+            }
+          }
+        }
+      }
+      if(length(list)==0){
+        a=which.max(finan_cost2[,jj+1]) 
+      }else{
+        a=which.max(finan_cost2[-list,jj+1])
+      }
+      i=i+1
+      if((leverage1-w_1[a])<=0){
+        if(length(list)==0){
+          mat[a,2]=mat[a,2]+finan_cost2[,jj+1][a]*leverage1
+        }else{
+          M=intersect(which((w_1==w_1[-list][a])),which((finan_cost2[,jj+1]==finan_cost2[-list,jj+1][a])))
+          mat[M,2]=mat[M,2]+finan_cost2[-list,jj+1][a]*leverage1
+        }
+        leverage1=-1
+      }else{
+        if(length(list)==0){
+          mat[a,2]=mat[a,2]+finan_cost2[,jj+1][a]*w_1[a]
+          leverage1=leverage1-w_1[a]
+        }else{
+          M=intersect(which((w_1==w_1[-list][a])),which((finan_cost2[,jj+1]==finan_cost2[-list,jj+1][a])))
+          mat[M,2]=mat[M,2]+finan_cost2[-list,jj+1][a]*w_1[a]
+          leverage1=leverage1-w_1[-list][a]
+        }
+      }
+      list=c(list,M)
+    }
     return(mat)
   }
 }

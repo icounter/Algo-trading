@@ -88,7 +88,7 @@ sidebarLayout(
          ),
   mainPanel(
     fluidRow(
-      splitLayout(cellWidths = c("50%", "50%"), plotOutput("plot_bayesian"),  tableOutput("hotable2"))),
+      splitLayout(cellWidths = c("50%", "50%"), plotOutput("plot_bayesian"),  DT::dataTableOutput("hotable2"))),
     helpText("In the plot,A->B means A will affect  B"),
     helpText("Joint probability table shows the probability value in each scenario,1 means  extreme events will happen and 0 means extreme events won't happen")
             )
@@ -104,12 +104,13 @@ sidebarLayout(
     textInput("w1", label = h3("Tentative Portofolio Position"), value = "0,0.25,0.25,0"),
     helpText("The portofolio position you would like to change to,click compute transaction cost to see how much you should pay for position change,comma delimited"),
     numericInput("con_number", label = h3("Number of transaction cost condition nodes"), value = 1),
-    numericInput("con_number2", label = h3("Number of finance cost condition nodes"), value = 1),
-    helpText("You can make your piecewise linear assumption here,input the number of your intervals"),
     textInput("condtion_name", label = h3("Interval Spread"), value = "!=0"),
-    textInput("condtion_name2", label = h3("Interval Spread"), value = "!=0"),
     actionButton("go4","generate transcation cost Matrix"),
-    actionButton("go7","generate finance cost Matrix")
+    numericInput("con_number2", label = h3("Number of finance cost condition nodes"), value = 1),
+    textInput("condtion_name2", label = h3("Interval Spread"), value = "!=0"),
+    actionButton("go7","generate finance cost Matrix"),
+    helpText("You can make your piecewise linear assumption here,input the number of your intervals")
+    
     ),
   mainPanel(
     tabPanel("trans_cost"
@@ -204,7 +205,7 @@ fluidRow(
   column(2,actionButton("go2","start to compute"))
   ),
 hr()
-,fluidRow( plotOutput("opt_weights")),
+,fluidRow(plotOutput("opt_weights"),hr(),tableOutput("tablle")),
 hr(),
 titlePanel("6.Optimize weights table"),
 sidebarLayout(
