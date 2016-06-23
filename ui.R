@@ -6,6 +6,7 @@ modes <- getAceModes()
 themes <- getAceThemes()
 MAXIMUM_LOSS<<--99999999999999
 trans_generaed<<-0
+haircut<<-c(0,0.9,0,1)
 displayList<-c("expo","power","log","combo")
 shinyUI(fluidPage(
   img(src="logo.jpg", height = 50, width = 200),
@@ -83,16 +84,15 @@ sidebarLayout(
                helpText("outplot the structure of BN at the right panel"),
                textInput("prob_table", label = h3("Probability table"), value ="10,90;80,20,10,90;80,20,10,90;80,20,10,90;0,100"),
                helpText("Define conditional probability table for each node,semicomma delimited"),
-         actionButton("go5","Show BN conditional Table"),
-         helpText("When you have moret than 10 assets,PLEASE DONT TOUCH IT!")
+         actionButton("go5","Show BN conditional Table")
          ),
   mainPanel(
-    fluidRow(
-      splitLayout(cellWidths = c("50%", "50%"), plotOutput("plot_bayesian"),  DT::dataTableOutput("hotable2"))),
+  plotOutput("plot_bayesian"),hr(),DT::dataTableOutput("hotable2"),
     helpText("In the plot,A->B means A will affect  B"),
     helpText("Joint probability table shows the probability value in each scenario,1 means  extreme events will happen and 0 means extreme events won't happen")
-            )
-),
+)),
+hr(),
+DT::dataTableOutput("bayesian_matrix_cor"),
 hr(),
 titlePanel("3.Set Transaction Cost & Finance cost"),
 sidebarLayout(
@@ -103,11 +103,11 @@ sidebarLayout(
     helpText("present portofolio position,comma delimited"),
     textInput("w1", label = h3("Tentative Portofolio Position"), value = "0,0.25,0.25,0"),
     helpText("The portofolio position you would like to change to,click compute transaction cost to see how much you should pay for position change,comma delimited"),
-    numericInput("con_number", label = h3("Number of transaction cost condition nodes"), value = 1),
-    textInput("condtion_name", label = h3("Interval Spread"), value = "!=0"),
+#     numericInput("con_number", label = h3("Number of transaction cost condition nodes"), value = 1),
+#     textInput("condtion_name", label = h3("Interval Spread"), value = "!=0"),
     actionButton("go4","generate transcation cost Matrix"),
-    numericInput("con_number2", label = h3("Number of finance cost condition nodes"), value = 1),
-    textInput("condtion_name2", label = h3("Interval Spread"), value = "!=0"),
+#     numericInput("con_number2", label = h3("Number of finance cost condition nodes"), value = 1),
+#     textInput("condtion_name2", label = h3("Interval Spread"), value = "!=0"),
     actionButton("go7","generate finance cost Matrix"),
     helpText("You can make your piecewise linear assumption here,input the number of your intervals")
     
@@ -116,19 +116,19 @@ sidebarLayout(
     tabPanel("trans_cost"
              ,h4("Transaction Cost matrix")
              ,div(class="well container-fluid"
-                  ,hotable("hotable1")
+                  ,DT::dataTableOutput("hotable1")
              )),  
     tabPanel("finan_cost" ,h4("Finance Cost matrix")
                ,div(class="well container-fluid"
-               ,hotable("hotable5")
+               ,DT::dataTableOutput("hotable5")
                )),
     titlePanel("How much you will spend on transaction cost and finance cost"), 
     actionButton("go3","start to compute transaction cost and finance cost"),
-    textOutput("tentative_transcost")
+    tableOutput("tentative_transcost")
   )
 ),
 hr(),
-titlePanel("4.Select Utility Fucntion"),
+titlePanel("4.Select Utility Function"),
 sidebarLayout(
   sidebarPanel(
     selectInput("uti", label = h3("Utility Function"),choices = list("Exponential Utility" = 'expo', "Power Utility" = 'power', "Log Utility" = 'log',"Risk seeking combination"='combo'), selected = 'expo'),
@@ -188,27 +188,40 @@ fluidRow(
   helpText("maximum evaluation rounds controls the speed for you to find the optimized solution")
 ),hr(),
 fluidRow(
-  column(6, aceEditor("convexity_bounds", value="##input convexity bounds here(hint format is g(x)>=0)
-#eval_g0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,principal11=principal1)
+  column(6, aceEditor("convexity_bounds", value="##input inequality bounds here(hint format is g(x)>=0)
+#eval_g0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,finan_cost1=finan_cost,haircut1=haircut,principal11=principal1)
 #{
-#  h<-numeric(3)
-#  h[1]<-(1.09*0.0065+0.0408-0.0065-0.0215)*w1[1]+(0.0465-0.0065-0.015)*w1[2]+(0.0429-0.0065-0.0175)*w1[3]-0.09+1/3*w1[4]
+#  h<-numeric(1)
+#leverage=sum(w1[which(w1>0)])-1
+# if(leverage<0){
+#  h[1]=1
+# }else{
+#   h[1]<-sum(((1-haircut1)*w1)[which(w1>0)])-leverage
+# }
 #  h[3]<-1-w1[1]-w1[4]
 #  h[2]<-2-sum(w1)
 #  return(h)
 #}")),
-  column(6,aceEditor("linear_bounds", value="##input linear bounds here
-#eval_h0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,principal11=principal1)
+  column(6,aceEditor("linear_bounds", value="##input equality bounds here
+#eval_h0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,finan_cost1=finan_cost,haircut1=haircut,principal11=principal1)
 #{
 #  return(sum(w1)-1)
 #}")),
   column(2,actionButton("go2","start to compute"))
   ),
-hr()
-,fluidRow(plotOutput("opt_weights"),hr(),tableOutput("tablle")),
+hr(),
+fluidRow(plotOutput("opt_weights"),hr(),tableOutput("tablle")),
+hr(),
+ sidebarLayout(
+ sidebarPanel(uiOutput('variables'),
+              selectInput("see_parts", label = h3("See which part of return"),choices = list("normal part"='normal',"Total"='total'), selected = 'normal'),
+              sliderInput("subjective_k1", label = h3("Subjective Value For the plot"),min = 0.0, max =1.0,step=0.01, value =0.01)
+             ),mainPanel(plotOutput("returnplot"))
+ ),
 hr(),
 titlePanel("6.Optimize weights table"),
 sidebarLayout(
+
   sidebarPanel(textInput("lambdas", label = h3("lambdas you are interested in"), value = "5,10"),
 textInput("ks", label = h3("probabilities of at least one extreme events to happen"), value = "0.2,0.5"),
 helpText("Above are the lambdas and subjective_ks you are interested in,you may input multiple lambdas and ks,comma delimited"),
@@ -231,7 +244,10 @@ helpText("Above are the lambdas and subjective_ks you are interested in,you may 
     titlePanel("The optimized weights of the assets are:"),
     conditionalPanel(condition="input.uti2.indexOf('expo')>-1||input.uti2.indexOf('log')>-1||input.uti2.indexOf('power')>-1",tableOutput("hotable3")),
     conditionalPanel(condition="input.uti2.indexOf('combo')>-1",hr(),titlePanel("Using Combination Utility function:"),tableOutput("hotable4"))
-))
+)
+
+
+)
 
 )
 )

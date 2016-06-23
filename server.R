@@ -65,10 +65,10 @@ shinyServer(
      condd<-paste0(condd,con[which(nchar(bn)==0)],collapse = ";")
      updateTextInput(session,"prob_table",value=condd)
        trans_generaed<<-1
-       N1<-which(colnames(input_data)=="lower_bounds")
+       N1<-which(colnames(input_data)=="haircut")
        dddd<-input_data[,(N+6):(N1-1)]
        N2<-input_data[2,6]
-       N3<-N1-N-6-N2
+       N3<-input_data[3,6]
        trans_cost1<-data.frame((matrix(0,nrow=N,ncol=N2+1)))
        finan_cost1<-data.frame((matrix(0,nrow=N,ncol=N3+1)))
        if(N2==1){
@@ -90,6 +90,7 @@ shinyServer(
            eq[i]=str_replace_all(eq[i],"and","&")
            eq[i]=str_replace_all(eq[i],"s","<")
            eq[i]=str_replace_all(eq[i],"l",">")
+           eq[i]=str_replace_all(eq[i],"t","")
          }
          colnames(trans_cost1)<-c("Asset_name",eq)
        }
@@ -115,6 +116,7 @@ shinyServer(
          }
          colnames(finan_cost1)<-c("Asset_name",eq)
        }
+       haircut<<-input_data[,which(colnames(input_data)=="haircut")]
       trans_cost1<<-trans_cost1
       finan_cost1<<-finan_cost1
     }   
@@ -136,6 +138,35 @@ shinyServer(
       bayesian_matrix1[,2:ncol(bayesian_matrix1)]<-as.data.frame(lapply(bayesian_matrix1[,2:ncol(bayesian_matrix1)], format_num))
       return(bayesian_matrix1)
     })
+    generate_bayesian_cor<-eventReactive(input$go5,{
+      pro_dict3<-as.matrix(t(bayesian_matrix1))
+      pro_dict3<-as.matrix(pro_dict)
+      pro_dict_prob<-pro_dict3[1,]
+      pro_dict_matrix<-pro_dict3[2:nrow(pro_dict3),]
+      name<-rownames(pro_dict_matrix)
+      N<-length(name)
+      cor<-diag(N)
+      for(i in 1:(N-1)){
+        for(j in (i+1):N){
+          E1<-sum(pro_dict_prob*pro_dict_matrix[i,])
+          E2<-sum(pro_dict_prob*pro_dict_matrix[j,])
+          sigma1<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
+          sigma2<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
+          cor[i,j]=sum(pro_dict_prob*(pro_dict_matrix[i,]-E1)*(pro_dict_matrix[j,]-E2))/(sigma1*sigma2)
+        }
+      }
+      for(i in 1:(N-1)){
+        for(j in (i+1):N){
+          cor[j,i]=cor[i,j]
+        }
+      }
+      cor<-data.frame(cor)
+      colnames(cor)<-name
+      cor<-as.data.frame(lapply(cor, format_num9))
+      cor<-cbind(name,cor)
+      colnames(cor)[1]<-c("correlation matrix")
+      return(cor)
+    })
     format_num <- function(col) {
       if (is.numeric(col))
         sprintf('%1.0f', col)
@@ -149,6 +180,13 @@ shinyServer(
         pageLength = 15
       #colnames(bayesian_matrix2)
     )))
+    
+    output$bayesian_matrix_cor <- DT::renderDataTable(
+      DT::datatable(generate_bayesian_cor(), options = list(
+        lengthMenu = list(c(5, 15, -1), c('5', '15', 'All')),
+        pageLength = 15
+        #colnames(bayesian_matrix2)
+      )))
     
     plot_bay<-eventReactive(input$go6,{
       cond_tab=build_cond(affect_relation=input$affect_relation,prob_table=input$prob_table)
@@ -166,14 +204,16 @@ shinyServer(
     )
     format_num2 <- function(col) {
       if (is.numeric(col))
-        sprintf('%.4f', col)
+        sprintf('%.3f', col)
       else
         col
     }
     finan_cost2<-eventReactive(input$go7,{
-      if(input$assets_num1==4&input$con_number2==1&trans_generaed==0){
-        finan_cost1<-data.frame((matrix(0,nrow=input$assets_num1,ncol=input$con_number2+1)))
-        col_names<-strsplit(input$condtion_name2,",")[[1]]
+      if((input$assets_num1==4)&(trans_generaed==0)){
+        condtion_name2='!=0'
+        con_number2=1
+        finan_cost1<-data.frame((matrix(0,nrow=input$assets_num1,ncol=con_number2+1)))
+        col_names<-strsplit(condtion_name2,",")[[1]]
         colnames(finan_cost1)<-c("Asset_name",col_names)
         asset_name<-strsplit(input$asset_name1,",")[[1]]
         string2<-rep(asset_name,1)
@@ -183,38 +223,24 @@ shinyServer(
         finan_cost1[2,2]<-c(-0.0215)
         finan_cost1[3,2]<-c(-0.024)
         finan_cost1[4,2]<-c(-0.0065)
-        finan_cost<<-finan_cost1
+        finan_cost<<-(finan_cost1)
         return(finan_cost)
-    }else if(trans_generaed!=0){
-      finan_cost<<-finan_cost1
-      return(finan_cost)}else{
-        finan_cost1<-data.frame((matrix(0,nrow=input$assets_num1,ncol=input$con_number2+1)))
-        col_names<-strsplit(input$condtion_name2,",")[[1]]
-        colnames(finan_cost1)<-c("Asset_Name",col_names)
-        asset_name<-strsplit(input$asset_name1,",")[[1]]
-        string2<-rep(asset_name,1)
-        string2[1:input$assets_num1]=paste0(string2[1:input$assets_num1],"_finance_cost")
-        finan_cost1[,1]<-string1
-        finan_cost<<-finan_cost1
-        return(finan_cost1)
-      }
+      }else{
+      finan_cost<<-(finan_cost1)
+      return(finan_cost)}
       }) 
-    output$hotable5 <- renderHotable({
-        finan_cost<-finan_cost2()
-      }, readOnly = FALSE)
-    observe({
-      df <- hot.to.df(input$hotable5)
-      #        a<-colnames(df)
-      #        df<-as.data.frame(lapply(df, format_num2))
-      #        colnames(df)<-a
-      #       #df1<-formattable(df,digits=6,format='f')
-      print(df)
-    })
-
+    output$hotable5 <- DT::renderDataTable(
+      DT::datatable(finan_cost2(), options = list(
+        lengthMenu = list(c(5, 15, -1), c('5', '15', 'All')),
+        pageLength = 15
+        #colnames(bayesian_matrix2)
+      )))
     trans_cost2<-eventReactive(input$go4,{
-     if(input$assets_num1==4&input$con_number==1&trans_generaed==0){
-       trans_cost1<-data.frame((matrix(0,nrow=input$assets_num1,ncol=input$con_number+1)))
-       col_names<-strsplit(input$condtion_name,",")[[1]]
+     if((input$assets_num1==4)&(trans_generaed==0)){
+       con_number=1
+       condtion_name="!=0"
+       trans_cost1<-data.frame((matrix(0,nrow=input$assets_num1,ncol=con_number+1)))
+       col_names<-strsplit(condtion_name,",")[[1]]
        colnames(trans_cost1)<-c("Asset_name",col_names)
        asset_name<-strsplit(input$asset_name1,",")[[1]]
        string1<-rep(asset_name,1)
@@ -226,48 +252,44 @@ shinyServer(
        trans_cost1[4,2]<-c(0)
        trans_cost<<-(trans_cost1)
        return(trans_cost)
-     }else if(trans_generaed!=0){
-     trans_cost<<-trans_cost1
-     return(trans_cost)
      }else{
-      trans_cost1<-data.frame((matrix(0,nrow=input$assets_num1,ncol=input$con_number+1)))
-     col_names<-strsplit(input$condtion_name,",")[[1]]
-     colnames(trans_cost1)<-c("Asset_Name",col_names)
-     asset_name<-strsplit(input$asset_name1,",")[[1]]
-     string1<-rep(asset_name,1)
-     string1[1:input$assets_num1]=paste0(string1[1:input$assets_num1],"_trans_cost")
-     trans_cost1[,1]<-string1
-     trans_cost<<-trans_cost1
+     trans_cost<<-(trans_cost1)
      return(trans_cost)
-       
      }
     })
     
     # hotable
-    output$hotable1 <- renderHotable({
-      trans_cost<-trans_cost2()
-    }, readOnly = FALSE)
-    observe({
-      df <- hot.to.df(input$hotable1)
-#        a<-colnames(df)
-#        df<-as.data.frame(lapply(df, format_num2))
-#        colnames(df)<-a
-#       #df1<-formattable(df,digits=6,format='f')
-      print(df)
-    })
+    output$hotable1 <- DT::renderDataTable(
+      DT::datatable(trans_cost2(),options = list(
+        lengthMenu = list(c(5, 15, -1), c('5', '15', 'All')),
+        pageLength = 15)))
+
     tentative_trans<-eventReactive(input$go3,{
         w_now<-strsplit(input$w_now,",")[[1]]
       w_now<-as.double(w_now)
       w1<-strsplit(input$w1,",")[[1]]
       w1<-as.double(w1)
       principal1<-(input$principal1)
-      trans_cost<-hot.to.df(input$hotable1)
-      finan_cost<-hot.to.df(input$hotable5)
-      cost(w_now,w_1=w1,trans_cost,finan_cost,principal1)
+      trans_cost<-trans_cost
+      finan_cost<-finan_cost
+      haircut<<-haircut
+      cost2(w_now,w_1=w1,trans_cost,finan_cost,haircut,principal1)
     })
-    output$tentative_transcost<-renderText({ 
-      tentative_trans()
-    })
+    output$tentative_transcost<-renderTable({ 
+      weig<-tentative_trans()
+      colnames(weig)<-c("trans_cost(bps)","finance_cost(bps)","finance_weihts","haircut","allocated_weights","initial_Weights","weights_changed")
+      weig<-data.frame(weig)
+      name<-strsplit(input$asset_name1,",")[[1]]
+      weig<-cbind(name,weig)
+      colnames(weig)[1]="name"
+      weig[,2:(ncol(weig)-5)]<-as.data.frame(lapply(weig[,2:(ncol(weig)-5)], format_num8))
+      weig[,(ncol(weig)-4):(ncol(weig))]<-as.data.frame(lapply(weig[,(ncol(weig)-4):(ncol(weig))], format_num9))
+      return(weig)
+    }, readOnly = TRUE)
+  
+    
+    
+    
 #     output$tentative_lambda<-renderText({
 #       b<-calculate_l(input$uti,input$mid,input$mini,input$maxi,input$prob)
 #     })
@@ -314,7 +336,7 @@ shinyServer(
       }
       gene[,3]<-format_num2(gene[,3])
       gene$probability<-1-as.double(gene$probability)
-      ggplot(data=gene,aes(x=ret,y=probability,group=lambda,colour=lambda))+geom_line()+geom_text(aes(label=probability), size = 3,check_overlap = TRUE)+scale_y_continuous(breaks = round(seq(min(gene$probability), max(gene$probability), by = 0.03),5))+scale_x_continuous(breaks = round(seq(min(gene$ret), max(gene$ret), by = 0.01),5)) +xlab("Three-Month Return +/-")+ylab("probability of Win")
+      ggplot(data=gene,aes(x=ret,y=probability,group=lambda,colour=lambda))+geom_line()+geom_text(aes(label=probability), size = 4,check_overlap = TRUE)+scale_y_continuous(breaks = round(seq(min(gene$probability), max(gene$probability), by = 0.03),5))+scale_x_continuous(breaks = round(seq(min(gene$ret), max(gene$ret), by = 0.01),5)) +xlab("Three-Month Return +/-")+ylab("probability of Win")
     })
     output$plot_ut_zero_equal_2<-renderPlot({
       neg_ret<-seq(from=0,to=input$neg_ret_ran,by=-0.01)
@@ -362,7 +384,7 @@ shinyServer(
       gene[,3]<-format_num2(gene[,3])
       gene$pos_ret<-as.double(gene$pos_ret)
       gene$neg_ret<-as.double(gene$neg_ret)
-      ggplot(data=gene,aes(x=neg_ret,y=pos_ret,group=lambda,colour=lambda))+geom_line()+geom_text(aes(label=pos_ret), size = 3,check_overlap = TRUE)+xlab("Return in Bad Scenario")+ylab("Return in good Scenario")+scale_x_reverse(breaks = round(seq(from=min(as.double(gene$neg_ret)), to=max(as.double(gene$neg_ret)), by = 0.01),100))+scale_y_continuous(breaks = round(seq(from=min(as.double(gene$pos_ret)), to=max(as.double(gene$pos_ret)), by = 0.03),100))
+      ggplot(data=gene,aes(x=neg_ret,y=pos_ret,group=lambda,colour=lambda))+geom_line()+geom_text(aes(label=pos_ret), size = 4,check_overlap = TRUE)+xlab("Return in Bad Scenario")+ylab("Return in good Scenario")+scale_x_reverse(breaks = round(seq(from=min(as.double(gene$neg_ret)), to=max(as.double(gene$neg_ret)), by = 0.01),100))+scale_y_continuous(breaks = round(seq(from=min(as.double(gene$pos_ret)), to=max(as.double(gene$pos_ret)), by = 0.03),100))
     })
     output$utility_out2<-renderPlot({
       res11<-utility_solve(x_extreme =input$x_extreme,x_downturning =input$x_downturning,x_mid = input$x_mid2,x_upturning = input$x_upturning,prob2 = input$prob2)
@@ -383,11 +405,11 @@ shinyServer(
       if(input$uti!="combo"){
         call_scenario_cost_BN(input$uti,input$assets_num1,input$lambda1,input$asset_ret1,input$asset_vol1,
                             input$asset_corr1,input$sample_number1,input$extreme_stress_loss,pro_dict,
-                            input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$subjective_k,
+                            input$principal1,trans_cost,finan_cost,haircut,input$w_now,input$lower_bound,input$upper_bounds,input$subjective_k,
                             input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval)}else{
         call_scenario_cost_BN2(input$assets_num1,input$x_extreme,input$x_downturning,input$x_mid2,input$x_upturning,input$prob2,input$asset_ret1,input$asset_vol1,
                                                     input$asset_corr1,input$sample_number1,input$extreme_stress_loss,pro_dict,
-                                                    input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$subjective_k,
+                                                    input$principal1,trans_cost,finan_cost,haircut,input$w_now,input$lower_bound,input$upper_bounds,input$subjective_k,
                                                     input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval)
                               
       }
@@ -403,20 +425,27 @@ shinyServer(
     })
     format_num8 <- function(col) {
       if (is.numeric(col))
-        sprintf('%.4f', col)
+        sprintf('%.2f', 10000*col)
+      else
+        col
+    }
+    format_num9 <- function(col) {
+      if (is.numeric(col))
+        sprintf('%.2f%%', 100*col)
       else
         col
     }
     output$tablle<-renderTable({
       weights3<<-weights2()
        ww_1<-weights3$weights[-length(weights3$weights)]
-       mat=cost2(w_now,ww_1,trans_cost,finan_cost,principal1)
-       colnames(mat)<-c("trans_cost","finance_cost")
+       mat=cost2(w_now,ww_1,trans_cost,finan_cost,haircut,principal1)
+       colnames(mat)<-c("trans_cost(bps)","finance_cost(bps)","finance_weihts","haircut","allocated_weights","initial_Weights","weights_changed")
        mat<-data.frame(mat)
        name<-as.character(weights3$asset_name)
        mat<-cbind(name[-length(name)],mat)
        colnames(mat)[1]="name"
-       mat[,2:ncol(mat)]<-as.data.frame(lapply(mat[,2:ncol(mat)], format_num8))
+       mat[,2:(ncol(mat)-5)]<-as.data.frame(lapply(mat[,2:(ncol(mat)-5)], format_num8))
+       mat[,(ncol(mat)-4):(ncol(mat))]<-as.data.frame(lapply(mat[,(ncol(mat)-4):(ncol(mat))], format_num9))
        return(mat)
      }, readOnly = TRUE)
 
@@ -424,14 +453,14 @@ shinyServer(
       if(length(which(input$uti2=='combo'))==0){
                 weights_matrix<<-call_scenario_cost_BN_matrix(input$uti2,input$assets_num1,input$lambdas,input$asset_ret1,input$asset_vol1,
                               input$asset_corr1,input$sample_number2,input$extreme_stress_loss,pro_dict,
-                              input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$ks,
+                              input$principal1,trans_cost,finan_cost,haircut,input$w_now,input$lower_bound,input$upper_bounds,input$ks,
                               input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval) 
                 weights_matrix<<-data.frame(weights_matrix)
                   return(weights_matrix)
       }else if(length(which(input$uti2!='combo'))==0){
         weights_matrix5<<-call_scenario_cost_BN_matrix2(input$assets_num1,input$x_extreme2,input$x_downturning2,input$x_mid22,input$x_upturning2,input$prob22,input$asset_ret1,input$asset_vol1,
                                                         input$asset_corr1,input$sample_number1,input$extreme_stress_loss,pro_dict,
-                                                        input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$ks,
+                                                        input$principal1,trans_cost,finan_cost,haircut,input$w_now,input$lower_bound,input$upper_bounds,input$ks,
                                                         input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval)
         weights_matrix5<<-data.frame(weights_matrix5)
         return(weights_matrix5)
@@ -439,11 +468,11 @@ shinyServer(
         uti2<-input$uti2[-which(input$uti2=='combo')]
         weights_matrix<<-call_scenario_cost_BN_matrix(uti2,input$assets_num1,input$lambdas,input$asset_ret1,input$asset_vol1,
                                                       input$asset_corr1,input$sample_number2,input$extreme_stress_loss,pro_dict,
-                                                      input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$ks,
+                                                      input$principal1,trans_cost,finan_cost,haircut,input$w_now,input$lower_bound,input$upper_bounds,input$ks,
                                                       input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval) 
         weights_matrix5<<-call_scenario_cost_BN_matrix2(input$assets_num1,input$x_extreme2,input$x_downturning2,input$x_mid22,input$x_upturning2,input$prob22,input$asset_ret1,input$asset_vol1,
                                                   input$asset_corr1,input$sample_number1,input$extreme_stress_loss,pro_dict,
-                                                  input$principal1,hot.to.df(input$hotable1),hot.to.df(input$hotable5),input$w_now,input$lower_bound,input$upper_bounds,input$ks,
+                                                  input$principal1,trans_cost,finan_cost,haircut,input$w_now,input$lower_bound,input$upper_bounds,input$ks,
                                                   input$convexity_bounds,input$linear_bounds,input$asset_name1,input$maxeval)
       
         }
@@ -481,5 +510,59 @@ shinyServer(
       weights_matrix2[,7:ncol(weights_matrix2)]<-as.data.frame(lapply(weights_matrix2[,7:ncol(weights_matrix2)], format_num4))
       return(weights_matrix2)
     }, readOnly = TRUE)
+    Outvar<-reactive({
+      vars<-strsplit(input$asset_name1,",")[[1]]
+      vars<-c(vars,"optimized_total")
+      vars<-as.list(vars)
+      return(vars)
+    })
+    output$variables=renderUI({
+      selectInput('see_return','generate probability density function',Outvar())
+    })
+ output$returnplot<-renderPlot({
+   weights3<-weights2()
+   w_1<-weights3$weights[-length(weights3$weights)] 
+   name<-as.character(weights3$asset_name[-length(weights3$weights)])
+   tcost<-cost(w_now,w_1,trans_cost,finan_cost,haircut,principal1)
+   rand3<-rand2%*%w_1+tcost
+   rand3<-cbind(rand3,rand2)
+   rand3<-data.frame(rand3)
+   colnames(rand3)<-c("optimized_total",name)
+   M=which(input$see_return==colnames(rand3))
+   if(input$see_parts=='normal'){
+     p2<-ggplot(rand3, aes(x=rand3[,M])) +
+       stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand3)[M])+ylab("Cumulative Density Function")+scale_x_continuous(breaks = round(seq(min(rand3[,M]), max(rand3[,M]), by = 0.1),5))
+     return(p2)
+   }else{
+     u<-rep(1,nrow(pro_dict)-1)
+     uu<-diag(length(w_1))
+     pro_dict3<-t(t(pro_dict)[2:ncol(pro_dict),2:nrow(pro_dict)]%*%(loss1*w_1))+tcost
+     pro_dict_loss_matrix<-data.frame(t(pro_dict)[2:ncol(pro_dict),2:nrow(pro_dict)]%*%(loss1*uu)+tcost)
+     rand4=rand3[,M]
+     if(M==1){
+      Number<-as.integer((input$subjective_k1)/((1-input$subjective_k1)*(1-pro_dict$p0[1]))*nrow(rand3)*pro_dict[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
+      ecdf_gene<-rep(unique(pro_dict3),Number)
+      rand4<-data.frame(c(rand4,ecdf_gene))
+      colnames(rand4)<-colnames(rand3)[M]
+      p2<-ggplot(rand4, aes(x=rand4)) +
+        stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Cumulative Density Function")+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+      return(p2)
+     }else if(M!=(length(name)+1)){
+       set<-unique(pro_dict_loss_matrix[,M-1])
+       number<-set[which(set!=tcost)]
+       Number<-as.integer((input$subjective_k1)/((1-input$subjective_k1)*(1-pro_dict$p0[1]))*nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])!=tcost),]),"p",""))]))
+       ecdf_gene<-rep(number,Number)
+      rand4<-data.frame(c(rand4,ecdf_gene))
+      colnames(rand4)<-colnames(rand3)[M]
+       p2<-ggplot(rand4, aes(x=rand4)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Cumulative Density Function")+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+       return(p2)
+     }else{
+       p2<-ggplot(rand3, aes(x=rand3[,M])) +
+         stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand3)[M])+ylab("Cumulative Density Function")+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+       return(p2)
+       }
+     
+   }}
+   )
   }
 )
