@@ -7,6 +7,7 @@ themes <- getAceThemes()
 MAXIMUM_LOSS<<--99999999999999
 trans_generaed<<-0
 haircut<<-c(0,0.9,0,1)
+real_finance_weight<<-c(1,1,1,1)
 displayList<-c("expo","power","log","combo")
 shinyUI(fluidPage(
   img(src="logo.jpg", height = 50, width = 200),
@@ -83,15 +84,28 @@ sidebarLayout(
                actionButton("go6","Generate Bayesian Net plot"),
                helpText("outplot the structure of BN at the right panel"),
                textInput("prob_table", label = h3("Probability table"), value ="10,90;80,20,10,90;80,20,10,90;80,20,10,90;0,100"),
-               helpText("Define conditional probability table for each node,semicomma delimited"),
-         actionButton("go5","Show BN conditional Table")
+               helpText("Define conditional probability table for each node,semicomma delimited")
          ),
   mainPanel(
-  plotOutput("plot_bayesian"),hr(),DT::dataTableOutput("hotable2"),
+  plotOutput("plot_bayesian"),
     helpText("In the plot,A->B means A will affect  B"),
     helpText("Joint probability table shows the probability value in each scenario,1 means  extreme events will happen and 0 means extreme events won't happen")
 )),
 hr(),
+titlePanel("Joint probability table"),
+sliderInput("tentative_k", label = h3("Rescale the probabbility of Bayesian Network"),min = 0.0, max =1.0,step=0.01, value =0.01),actionButton("go5","Show BN conditional Table"),
+DT::dataTableOutput("hotable2"),
+hr(),
+titlePanel("Normal Scenario Correlation Matrix"),
+DT::dataTableOutput("bayesian_matrix_cor_normal"),
+hr(),
+titlePanel("Extreme Scenario Correlation Matrix"),
+DT::dataTableOutput("bayesian_matrix_cor_extreme"),
+hr(),
+titlePanel("Rescaled Correlation Matrix in Bayesian Network"),
+DT::dataTableOutput("bayesian_matrix_cor2"),
+hr(),
+titlePanel("Overal Correlation Matrix in Bayesian Network"),
 DT::dataTableOutput("bayesian_matrix_cor"),
 hr(),
 titlePanel("3.Set Transaction Cost & Finance cost"),
@@ -121,12 +135,12 @@ sidebarLayout(
     tabPanel("finan_cost" ,h4("Finance Cost matrix")
                ,div(class="well container-fluid"
                ,DT::dataTableOutput("hotable5")
-               )),
-    titlePanel("How much you will spend on transaction cost and finance cost"), 
-    actionButton("go3","start to compute transaction cost and finance cost"),
-    tableOutput("tentative_transcost")
-  )
+               )))
 ),
+hr(),
+titlePanel("How much you will spend on transaction cost and finance cost"), 
+actionButton("go3","start to compute transaction cost and finance cost"),
+tableOutput("tentative_transcost"),
 hr(),
 titlePanel("4.Select Utility Function"),
 sidebarLayout(
@@ -205,23 +219,27 @@ fluidRow(
   column(6,aceEditor("linear_bounds", value="##input equality bounds here
 #eval_h0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,finan_cost1=finan_cost,haircut1=haircut,principal11=principal1)
 #{
-#  return(sum(w1)-1)
+#  return(sum(w1)-w1[7]-1)
 #}")),
   column(2,actionButton("go2","start to compute"))
   ),
 hr(),
 fluidRow(plotOutput("opt_weights"),hr(),tableOutput("tablle")),
 hr(),
+titlePanel("Cumulative Density Function based on Optimized Weights"),
  sidebarLayout(
  sidebarPanel(uiOutput('variables'),
-              selectInput("see_parts", label = h3("See which part of return"),choices = list("normal part"='normal',"Total"='total'), selected = 'normal'),
               sliderInput("subjective_k1", label = h3("Subjective Value For the plot"),min = 0.0, max =1.0,step=0.01, value =0.01)
              ),mainPanel(plotOutput("returnplot"))
  ),
 hr(),
+sidebarLayout(
+  sidebarPanel(uiOutput('variables2'),
+               sliderInput("subjective_k2", label = h3("Subjective Value For the plot"),min = 0.0, max =1.0,step=0.01, value =0.01)
+  ),mainPanel(plotOutput("returnplot2"))
+),hr(),
 titlePanel("6.Optimize weights table"),
 sidebarLayout(
-
   sidebarPanel(textInput("lambdas", label = h3("lambdas you are interested in"), value = "5,10"),
 textInput("ks", label = h3("probabilities of at least one extreme events to happen"), value = "0.2,0.5"),
 helpText("Above are the lambdas and subjective_ks you are interested in,you may input multiple lambdas and ks,comma delimited"),

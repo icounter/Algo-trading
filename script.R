@@ -129,7 +129,7 @@ build_cond<-function(affect_relation,prob_table){
   }
   return(cond_table)
 }
-cost<-function(w_now,w_1,trans_cost,finan_cost,haircut,principal1=2293){
+cost<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,principal1=2293){
   ##cash position at MM
   print(w_1)
   N<-length(w_now)
@@ -161,13 +161,18 @@ cost<-function(w_now,w_1,trans_cost,finan_cost,haircut,principal1=2293){
     ####can't consider cash fee
     con2<-colnames(finan_cost)[2:N_fina_con]
     list=which(w_1<=0)
-    leverage1=sum(w_1[which(w_1>0)])-1
+    list=unique(c(list,which(real_finance_weight==0)))
+    if(length(list)!=0){
+      leverage1=sum(w_1[-list])-1
+    }else{
+      leverage1=sum(w_1)-1
+    } 
     finan_cost2=finan_cost 
-    finan_cost2[N,2:N_fina_con]=rep(-1,N_fina_con-1)
+    finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(-1,N_fina_con-1)
     haircut1=(1-haircut)*w_1
     w_index=seq(1,N)
     while(leverage1>0&&i<=length(w_1)){
-      if(leverage1>sum(haircut1[which(w_1>0)])) return(ret_sum+sum(finan_cost2[,N_fina_con])*(leverage1+1))
+      if(leverage1>sum(intersect(haircut1[which(w_1>0)],haircut1[which(real_finance_weight!=0)]))) return(ret_sum+sum(finan_cost2[,N_fina_con])*(leverage1+1))
       else{
       remain1=(leverage1)*principal1
       for(jj in 1:(N_fina_con-1)){
@@ -205,7 +210,7 @@ cost<-function(w_now,w_1,trans_cost,finan_cost,haircut,principal1=2293){
     return(ret_sum)
   }
 }
-cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,principal1=2293){
+cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,principal1=2293){
   ##cash position at MM
   N<-length(w_now)
   mat<-matrix(0,nrow=N,ncol=7)
@@ -239,13 +244,17 @@ cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,principal1=2293){
     i=0
     M=MAXIMUM_LOSS
     ####can't consider cash fee
-   
     haircut1=(1-haircut)*w_1
     con2<-colnames(finan_cost)[2:N_fina_con]
     list=which(w_1<=0)
-    leverage1=sum(w_1[which(w_1>0)])-1
+    list=unique(c(list,which(real_finance_weight==0)))
+    if(length(list)!=0){
+      leverage1=sum(w_1[-list])-1
+    }else{
+      leverage1=sum(w_1)-1
+    } 
     finan_cost2=finan_cost
-    finan_cost2[N,2:N_fina_con]=rep(-1,N_fina_con-1)
+    finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(-1,N_fina_con-1)
     w_index=seq(1,N)
     while(leverage1>0&&i<=length(w_1)){
       remain1=(leverage1)*principal1
@@ -344,19 +353,19 @@ get_extreme_log_uti<<-function(pro_dict,loss,beta,w_now,w,tcost,mu){
   return(rett)
 }
 
-power_find_w<-function(w1,w_now,beta1,trans_cost,finan_cost,haircut,principal1,rand2,loss1,pro_dict,k,mu){
-  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,principal1)
+power_find_w<-function(w1,w_now,beta1,trans_cost,finan_cost,haircut,real_finance_weight,principal1,rand2,loss1,pro_dict,k,mu){
+  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,real_finance_weight,principal1)
   exp_pow_ut<-(1-k)*mean(na.omit(get_power_ut(rand2 %*% w1,beta1,w_now,w1,tcost)))+(k/(1-pro_dict$p0[1]))*get_extreme_power_uti(pro_dict,loss1,beta1,w_now,w1,tcost,mu)
   return(-exp_pow_ut)
 }
 
-log_find_w<-function(w1,w_now,beta1,trans_cost,finan_cost,haircut,principal1,rand2,loss1,pro_dict,k,mu){
-  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,principal1)
+log_find_w<-function(w1,w_now,beta1,trans_cost,finan_cost,haircut,real_finance_weight,principal1,rand2,loss1,pro_dict,k,mu){
+  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,real_finance_weight,principal1)
   exp_log_ut<-(1-k)*mean(na.omit(get_log_ut(rand2 %*% w1,beta1,w_now,w1,tcost)))+k/(1-pro_dict$p0[1])*get_extreme_log_uti(pro_dict,loss1,beta1,w_now,w1,tcost,mu)
   return(-exp_log_ut)  
 }
-expo_find_w<-function(w1,w_now,beta1,trans_cost,finan_cost,haircut,principal1,rand2,loss1,pro_dict,k,mu){
-  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,principal1)
+expo_find_w<-function(w1,w_now,beta1,trans_cost,finan_cost,haircut,real_finance_weight,principal1,rand2,loss1,pro_dict,k,mu){
+  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,real_finance_weight,principal1)
   exp_expo_ut<-(1-k)*mean(na.omit(get_expo_ut(rand2 %*% w1,beta1,w_now,w1,tcost)))+k/(1-pro_dict$p0[1])*get_extreme_expo_uti(pro_dict,loss1,beta1,w_now,w1,tcost,mu)
   return(-exp_expo_ut)
 }
@@ -441,7 +450,7 @@ bayesian_matrix<-function(cond_table=NULL,asset_name){
   return(pro_dict)
 }
 scenario_cost_BN<-function(method,assets_num,lambda,asset_ret,asset_var,asset_corr,sample_number,extreme_stress_loss,pro_dict,principal1,
-                           trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,subjective_k,
+                           trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,subjective_k,
                            convexity_bounds,linear_bounds,asset_name1=NULL,maxeval1){
   ##
   #
@@ -478,6 +487,7 @@ scenario_cost_BN<-function(method,assets_num,lambda,asset_ret,asset_var,asset_co
   trans_cost<<-trans_cost
   finan_cost<<-finan_cost
   haircut<<-haircut
+  real_finance_weight<<-real_finance_weight
   w_now<<-w_now
   w1<<-w_now
   eval_g0 <<- convexity_bounds
@@ -509,21 +519,21 @@ scenario_cost_BN<-function(method,assets_num,lambda,asset_ret,asset_var,asset_co
     w1<-auglag(x0=w1, power_find_w,lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
-              trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu)
+              trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu)
   }else if(method=='log'){
     w1<-auglag(w1, log_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
-              trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
+              trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
   }else if(method=='expo'){
     w1<-auglag(w1, expo_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info = TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
-              trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
+              trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
   }
   w1<-w1$par
-  if(sum(w1)>1){
-    w1[N+1]=sum(w1)-1
+  if(sum(real_finance_weight*w1)>1){
+    w1[N+1]=sum(real_finance_weight*w1)-1
   }else{
     w1[N+1]=0
     w1[N]=w1[N]+1-sum(w1)
@@ -539,7 +549,7 @@ scenario_cost_BN<-function(method,assets_num,lambda,asset_ret,asset_var,asset_co
 
 call_scenario_cost_BN<-function(uti,assets_num1,lambda1,asset_ret1,asset_vol1,
                                 asset_corr1,sample_number1,extreme_stress_loss,pro_dict,
-                                principal1,trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,subjective_k,
+                                principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,subjective_k,
                                 convexity_bounds,linear_bounds,asset_name1,maxeval1){
   uti<-uti
   assets_num1<-as.double(assets_num1)
@@ -567,7 +577,7 @@ call_scenario_cost_BN<-function(uti,assets_num1,lambda1,asset_ret1,asset_vol1,
   asset_name1<-strsplit(asset_name1,",")[[1]]
   weights=scenario_cost_BN(uti,assets_num1,lambda1,asset_ret1,asset_var1,
                            asset_corr1,sample_number1,extreme_stress_loss,pro_dict,
-                           principal1,trans_cost,finan_cost,haircut,w_now,lower_bound,upper_bound,k,
+                           principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bound,upper_bound,k,
                            convexity_bounds,linear_bounds,asset_name1,maxeval1)
   return(weights)
 }
@@ -607,13 +617,13 @@ get_extreme_combo_uti<<-function(pro_dict,loss,x_downturning,AA,l,k_2,k_1,x_1,w_
 #   }
   return(rett)
 }
-combo_find_w<-function(w1,w_now,x_downturning,AA,ll,k_2,k_1,x_1,trans_cost,finan_cost,haircut,principal1,rand2,loss1,pro_dict,k,mu){
-  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,principal1)
+combo_find_w<-function(w1,w_now,x_downturning,AA,ll,k_2,k_1,x_1,trans_cost,finan_cost,haircut,real_finance_weight,principal1,rand2,loss1,pro_dict,k,mu){
+  tcost<-cost(w_now,w1,trans_cost,finan_cost,haircut,real_finance_weight,principal1)
   exp_pow_ut<-(1-k)*mean(na.omit(get_combo_ut(rand2 %*% w1,x_downturning,AA,ll,k_2,k_1,x_1,w_now,w1,tcost)))+(k/(1-pro_dict$p0[1]))*get_extreme_combo_uti(pro_dict,loss1,x_downturning,AA,ll,k_2,k_1,x_1,w_now,w1,tcost,mu)
   return(-exp_pow_ut)
 }
 scenario_cost_BN2<-function(assets_num,x_1,k_1,k_2,AA,l,x_downturning,asset_ret,asset_var,asset_corr,sample_number,extreme_stress_loss,pro_dict,principal1,
-                           trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,subjective_k,
+                           trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,subjective_k,
                            convexity_bounds,linear_bounds,asset_name1=NULL,maxeval1){
   ##
   #
@@ -649,6 +659,7 @@ scenario_cost_BN2<-function(assets_num,x_1,k_1,k_2,AA,l,x_downturning,asset_ret,
   trans_cost<<-trans_cost
   finan_cost<<-finan_cost
   haircut<<-haircut
+  real_finance_weight<<-real_finance_weight
   w_now<<-w_now
   w1<<-w_now
   eval_g0 <<- convexity_bounds
@@ -678,10 +689,10 @@ scenario_cost_BN2<-function(assets_num,x_1,k_1,k_2,AA,l,x_downturning,asset_ret,
  w1<-auglag(w1, combo_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),x_downturning=x_downturning,AA=AA,k_2=k_2,k_1=k_1,x_1=x_1,ll=l
-           ,w_now=w_now, trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
+           ,w_now=w_now, trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
   w1<-w1$par
-  if(sum(w1)>1){
-    w1[N+1]=sum(w1)-1
+  if(sum(real_finance_weight*w1)>1){
+    w1[N+1]=sum(real_finance_weight*w1)-1
   }else{
     w1[N+1]=0
     w1[N]=w1[N]+1-sum(w1)
@@ -696,7 +707,7 @@ scenario_cost_BN2<-function(assets_num,x_1,k_1,k_2,AA,l,x_downturning,asset_ret,
 }
 call_scenario_cost_BN2<-function(assets_num1,x_extreme,x_downturning,x_mid2,x_upturning,prob2,asset_ret1,asset_vol1,
                                  asset_corr1,sample_number1,extreme_stress_loss,pro_dict,
-                                 principal1,trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,subjective_k,
+                                 principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,subjective_k,
                                  convexity_bounds,linear_bounds,asset_name1,maxeval1){
   assets_num1<-as.double(assets_num1)
   x_extreme<<-x_extreme
@@ -732,12 +743,12 @@ call_scenario_cost_BN2<-function(assets_num1,x_extreme,x_downturning,x_mid2,x_up
   asset_name1<-strsplit(asset_name1,",")[[1]]
   weights=scenario_cost_BN2(assets_num1,x_1,k_1,k_2,AA,l,x_downturning,asset_ret1,asset_var1,
                            asset_corr1,sample_number1,extreme_stress_loss,pro_dict,
-                           principal1,trans_cost,finan_cost,haircut,w_now,lower_bound,upper_bound,k,
+                           principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bound,upper_bound,k,
                            convexity_bounds,linear_bounds,asset_name1,maxeval1)
   return(weights)
 }
 scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,asset_corr,sample_number,extreme_stress_loss,pro_dict,principal1,
-                           trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,subjective_ks,
+                           trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,subjective_ks,
                            convexity_bounds,linear_bounds,asset_name1=NULL,maxeval1){
   ##
   #
@@ -773,6 +784,7 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
   trans_cost<<-trans_cost
   finan_cost<<-finan_cost
   haircut<<-haircut
+  real_finance_weight<<-real_finance_weight
   w_now<<-w_now
   w1<<-w_now
   eval_g0 <<- convexity_bounds
@@ -806,10 +818,10 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
           w_temp<-auglag(w1, power_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
                         hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
                         nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambdas[i],
-                        trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
+                        trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
           w_temp<-w_temp$par
-          if(sum(w_temp)>1){
-            w_temp[N+1]=sum(w_temp)-1
+          if(sum(real_finance_weight*w_temp)>1){
+            w_temp[N+1]=sum(real_finance_weight*w_temp)-1
           }else{
             w_temp[N+1]=0
             w_temp[N]=w_temp[N]+1-sum(w_temp)
@@ -830,10 +842,10 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
           w_temp<-auglag(w1, log_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
                         hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
                         nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambdas[i],
-                        trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
+                        trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
           w_temp<-w_temp$par
-          if(sum(w_temp)>1){
-            w_temp[N+1]=sum(w_temp)-1
+          if(sum(real_finance_weight*w_temp)>1){
+            w_temp[N+1]=sum(real_finance_weight*w_temp)-1
           }else{
             w_temp[N+1]=0
             w_temp[N]=w_temp[N]+1-sum(w_temp)
@@ -855,10 +867,10 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
           w_temp<-auglag(w1, expo_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
                         hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
                         nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambdas[i],
-                        trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
+                        trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
           w_temp<-w_temp$par
-          if(sum(w_temp)>1){
-            w_temp[N+1]=sum(w_temp)-1
+          if(sum(real_finance_weight*w_temp)>1){
+            w_temp[N+1]=sum(real_finance_weight*w_temp)-1
           }else{
             w_temp[N+1]=0
             w_temp[N]=w_temp[N]+1-sum(w_temp)
@@ -883,7 +895,7 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
 }
 call_scenario_cost_BN_matrix<-function(uti2,assets_num1,lambdas,asset_ret1,asset_vol1,
                              asset_corr1,sample_number2,extreme_stress_loss,pro_dict,
-                             principal1,trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,ks,
+                             principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,ks,
                              convexity_bounds,linear_bounds,asset_name1,maxeval1){
   uti<-uti2
   assets_num1<-as.double(assets_num1)
@@ -911,13 +923,13 @@ call_scenario_cost_BN_matrix<-function(uti2,assets_num1,lambdas,asset_ret1,asset
   asset_name1<-strsplit(asset_name1,",")[[1]]
   weights=scenario_cost_BN_matrix(uti,assets_num1,lambdas,asset_ret1,asset_var1,
                            asset_corr1,sample_number2,extreme_stress_loss,pro_dict,
-                           principal1,trans_cost,finan_cost,haircut,w_now,lower_bound,upper_bound,ks,
+                           principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bound,upper_bound,ks,
                            convexity_bounds,linear_bounds,asset_name1,maxeval1)
   return(weights)
 }
 call_scenario_cost_BN_matrix2<-function(assets_num1,x_extreme,x_downturning,x_mid2,x_upturning,prob2,asset_ret1,asset_vol1,
                                         asset_corr1,sample_number1,extreme_stress_loss,pro_dict,
-                                        principal1,trans_cost,finan_cost,haircut,w_now,lower_bounds,upper_bounds,ks,
+                                        principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bounds,upper_bounds,ks,
                                         convexity_bounds,linear_bounds,asset_name1,maxeval1){
   assets_num1<-as.double(assets_num1)
   x_extreme<<-x_extreme
@@ -956,7 +968,7 @@ call_scenario_cost_BN_matrix2<-function(assets_num1,x_extreme,x_downturning,x_mi
     k=ks[jj]
     weights3=scenario_cost_BN2(assets_num1,x_1,k_1,k_2,AA,l,x_downturning,asset_ret1,asset_var1,
                             asset_corr1,sample_number1,extreme_stress_loss,pro_dict,
-                            principal1,trans_cost,finan_cost,haircut,w_now,lower_bound,upper_bound,k,
+                            principal1,trans_cost,finan_cost,haircut,real_finance_weight,w_now,lower_bound,upper_bound,k,
                             convexity_bounds,linear_bounds,asset_name1,maxeval1)
     weights[jj,]=c(ks[jj],x_extreme,x_downturning,x_upturning,x_mid,prob2,weights3$weights)
   }
