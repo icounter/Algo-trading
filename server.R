@@ -785,8 +785,12 @@ shinyServer(
        }
        }}
    gl=as.factor(rep(name_level_list,length_level_list))
-   df<-data.frame(x=rand5,g=gl)
-   p2<-ggplot(df, aes(x,colour=g)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand5)))/100,to=max(rand5), by = 0.05),5))
+   df<-data.frame(x=rand5,assets=gl)
+   if(length(M)==1&M==(length(name)+1)){
+     p2<-ggplot(df, aes(x,colour=assets)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))
+   }else{
+   p2<-ggplot(df, aes(x,colour=assets)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand5)))/100,to=max(rand5), by = 0.05),5))
+   }
    return(p2)
    })
    
