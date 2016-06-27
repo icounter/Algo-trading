@@ -249,9 +249,9 @@ cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,prin
     list=which(w_1<=0)
     list=unique(c(list,which(real_finance_weight==0)))
     if(length(list)!=0){
-      leverage1=sum(w_1[-list])-1
+      leverage1=sum(real_finance_weight[-list]*w_1[-list])-1
     }else{
-      leverage1=sum(w_1)-1
+      leverage1=sum(real_finance_weight*w_1)-1
     } 
     finan_cost2=finan_cost
     finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(-1,N_fina_con-1)
