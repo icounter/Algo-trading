@@ -156,58 +156,77 @@ cost<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,princ
           }}
       }
     }
-    i=0
-    M=MAXIMUM_LOSS
-    ####can't consider cash fee
-    con2<-colnames(finan_cost)[2:N_fina_con]
-    list=which(w_1<=0)
-    list=unique(c(list,which(real_finance_weight==0)))
-    if(length(list)!=0){
-      leverage1=sum(real_finance_weight[-list]*w_1[-list])-1
-    }else{
-      leverage1=sum(real_finance_weight*w_1)-1
-    } 
-    finan_cost2=finan_cost 
-    finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(-1,N_fina_con-1)
-    haircut1=(1-haircut)*real_finance_weight*w_1
-    w_index=seq(1,N)
-    while(leverage1>0&&i<=length(w_1)){
-      if(leverage1>sum(intersect(haircut1[which(w_1>0)],haircut1[which(real_finance_weight!=0)]))) return(ret_sum+sum(finan_cost2[,N_fina_con])*(leverage1+1))
-      else{
-      remain1=(leverage1)*principal1
-      for(jj in 1:(N_fina_con-1)){
-        if(jj==1||jj==(N_fina_con-1)) {
-          aa<-paste0(remain1,con2[jj])
-          if(eval(parse(text=aa))){
-            break;
-          }}
+    flag=0
+    w=0
+    list1=which(w_1<0)
+   if(length(w_1)!=0){
+       w=abs(sum(((1-haircut)*real_finance_weight*w_1)[list1]))+abs(sum((haircut*w_1)[list1]))
+         if(w_1[length(w_1)]<w){
+           flag=1
+           w_1[length(w_1)]=w_1[length(w_1)]-w
+         }else{
+        w_1[length(w_1)]=w_1[length(w_1)]-w
+   }
+    }
+      i=0
+      M=MAXIMUM_LOSS
+      ####can't consider cash fee
+      con2<-colnames(finan_cost)[2:N_fina_con]
+      list=which(w_1<=0)
+      list=unique(c(list,which(real_finance_weight==0)))
+      if(length(list)!=0){
+        leverage1=sum(real_finance_weight[-list]*w_1[-list])-(1-w)
+      }else{
+        leverage1=sum(real_finance_weight*w_1)-(1-w)
+      }
+      finan_cost2=finan_cost 
+      finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(MAXIMUM_LOSS,N_fina_con-1)
+      haircut1=(1-haircut)*real_finance_weight*w_1
+      w_index=seq(1,N)
+      while(leverage1>0&&i<=length(w_1)){
+        if(leverage1>sum(intersect(haircut1[which(w_1>0)],haircut1[which(real_finance_weight!=0)]))) return(MAXIMUM_LOSS)                      #(ret_sum+sum(finan_cost2[,N_fina_con])*(leverage1+1))
         else{
-          aa<-paste0(remain1,con2[jj],remain1)
-          if(eval(parse(text=aa))){
-            break;
+          remain1=(leverage1)*principal1
+          for(jj in 1:(N_fina_con-1)){
+            if(jj==1||jj==(N_fina_con-1)) {
+              aa<-paste0(remain1,con2[jj])
+              if(eval(parse(text=aa))){
+                break;
+              }}
+            else{
+              aa<-paste0(remain1,con2[jj],remain1)
+              if(eval(parse(text=aa))){
+                break;
+              }
+            }
           }
+          if(length(list)==0){
+            a=which.max(finan_cost2[,jj+1])
+            M=a
+          }else{
+            a=which.max(finan_cost2[-list,jj+1])
+            M=intersect(which((w_index==w_index[-list][a])),which((finan_cost2[,jj+1]==finan_cost2[-list,jj+1][a])))
+            M=intersect(M,which((haircut==haircut[-list][a])))
+            if(length(M)>1) M=M[1]
+          }
+          i=i+1
+          if((leverage1-haircut1[M])<=0){
+            ret_sum=ret_sum+finan_cost2[M,jj+1]*leverage1
+            leverage1=-1
+          }else{
+            ret_sum=ret_sum+finan_cost2[M,jj+1]*haircut1[M]
+            leverage1=leverage1-haircut1[M]
+          }
+          list=c(list,M)
         }
       }
-      if(length(list)==0){
-        a=which.max(finan_cost2[,jj+1])
-        M=a
+      if(flag==1&&ret_sum!=0){
+      return(10*(ret_sum))  
+      }else if(flag==0){
+     return(ret_sum)
       }else{
-        a=which.max(finan_cost2[-list,jj+1])
-        M=intersect(which((w_index==w_index[-list][a])),which((finan_cost2[,jj+1]==finan_cost2[-list,jj+1][a])))
-        M=intersect(M,which((haircut==haircut[-list][a])))
-        if(length(M)>1) M=M[1]
+        return(-0.01)
       }
-      i=i+1
-      if((leverage1-haircut1[M])<=0){
-        ret_sum=ret_sum+finan_cost2[M,jj+1]*leverage1
-        leverage1=-1
-      }else{
-        ret_sum=ret_sum+finan_cost2[M,jj+1]*haircut1[M]
-        leverage1=leverage1-haircut1[M]
-      }
-      list=c(list,M)
-    }}
-    return(ret_sum)
   }
 }
 cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,principal1=2293){
@@ -241,6 +260,13 @@ cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,prin
           }}
       }
     }
+    list1=which(w_1<0)
+    if(length(list1)!=0){
+      w=abs(sum(((1-haircut)*real_finance_weight*w_1)[list1]))+abs(sum((haircut*w_1)[list1]))
+    }else{
+      w=0
+    }
+    w_1[length(w_1)]=w_1[length(w_1)]-w
     i=0
     M=MAXIMUM_LOSS
     ####can't consider cash fee
@@ -249,12 +275,12 @@ cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,prin
     list=which(w_1<=0)
     list=unique(c(list,which(real_finance_weight==0)))
     if(length(list)!=0){
-      leverage1=sum(real_finance_weight[-list]*w_1[-list])-1
+      leverage1=sum(real_finance_weight[-list]*w_1[-list])-(1-w)
     }else{
-      leverage1=sum(real_finance_weight*w_1)-1
+      leverage1=sum(real_finance_weight*w_1)-(1-w)
     } 
     finan_cost2=finan_cost
-    finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(-1,N_fina_con-1)
+    finan_cost2[which(grepl("cash",finan_cost[,1])==TRUE),2:N_fina_con]=rep(MAXIMUM_LOSS,N_fina_con-1)
     w_index=seq(1,N)
     while(leverage1>0&&i<=length(w_1)){
       remain1=(leverage1)*principal1
@@ -292,27 +318,34 @@ cost2<-function(w_now,w_1,trans_cost,finan_cost,haircut,real_finance_weight,prin
         }
       list=c(list,M)
     }
-#     for(ii in 1:N){
-#       if(mat[ii,5]==0){
-#         mat[ii,3]=0
-#       }else{
-#         mat[ii,3]=mat[ii,3]/mat[ii,5]
-#       }
-#     }
       return(mat)
     }
     
   }
 power_uility<-function(x,beta){
-  u<-1/(1-beta)*(x^(1-beta)-1)
+  i<-1
+  u<-rep(1,length(x))
+  while(i<=length(x)){
+      if(x[i]<=MINIMUM_RET){
+    u[i]<-1/(1-beta)*(MINIMUM_RET^(1-beta)-1)+MINIMUM_RET^(-beta)*(x[i]-MINIMUM_RET)
+  }else{
+    u[i]<-1/(1-beta)*(x[i]^(1-beta)-1)
+  }
+    i=i+1
+  }
   return(u)
 }
 log_uility<-function(x){
-  if(x<=0){
-    return(MAXIMUM_LOSS)
+  i<-1
+  u<-rep(1,length(x))
+  while(i<=length(x)){
+  if(x[i]<=MINIMUM_RET){
+    u[i]<-(log(MINIMUM_RET)+1/MINIMUM_RET*(x[i]-MINIMUM_RET))
   }else{
-    return(log(x))
+    u[i]<-(log(x[i]))
   }
+    i=i+1}
+  return(u)
   # return((x<=0)*MAXIMUM_LOSS+(x>0)*log(max(x,10^-10)))
 }
 expo_utility<-function(x,lambda){
@@ -445,6 +478,7 @@ bayesian_matrix<-function(cond_table=NULL,asset_name){
   colnames(joint_table)<-colname
   rownames(joint_table)<-c("probability",asset_name)
   pro_dict<-data.frame(joint_table)
+  pro_dict2<<-pro_dict
   pro_dict<-pro_dict[,which(pro_dict[1,]!=0)]
   pro_dict<<-pro_dict
   return(pro_dict)
@@ -505,13 +539,13 @@ scenario_cost_BN<-function(method,assets_num,lambda,asset_ret,asset_var,asset_co
   }else{
     heqjac.hs100<<-function(x) nl.jacobian(x, eval_h0, heps = 1e-2)
   }
-  if(assets_num>6){
-    tol=1e-4
+  if(is.null(eval_h0)&&is.null(eval_g0)){
+    tol=1e-8
     maxeval1 = maxeval1
     check_derivatives1=FALSE
   }else{
-    tol<-1e-8
-    maxeval1 = 1000
+    tol<-1e-3
+    maxeval1 = maxeval1
     check_derivatives1=FALSE
   }
   if(method=='power'){
@@ -520,23 +554,43 @@ scenario_cost_BN<-function(method,assets_num,lambda,asset_ret,asset_var,asset_co
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
               trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu)
+#     while(w1$convergence<0){
+#       sprintf("Optimize Failure,Restart!!!!")
+#       w1<-auglag(x0=w_now, power_find_w,lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
+#                  hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
+#                  nl.info=TRUE, control = list(xtol_rel = tol,maxeval=3000,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
+#                  trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu)
+#     }
   }else if(method=='log'){
     w1<-auglag(w1, log_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
               trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
-  }else if(method=='expo'){
+#     while(w1$convergence<0){
+#       sprintf("Optimize Failure,Restart!!!!")
+#       w1<-auglag(x0=w_now, log_find_w,lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
+#                  hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
+#                  nl.info=TRUE, control = list(xtol_rel = tol,maxeval=3000,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
+#                  trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu)
+# }
+    }else if(method=='expo'){
     w1<-auglag(w1, expo_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
               hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
               nl.info = TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
               trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
-  }
+#     sprintf("Optimize Failure,Restart!!!!")
+#     w1<-auglag(x0=w_now, expo_find_w,lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
+#                hin =eval_g0 ,hinjac = hinjac.hs100, heq = eval_h0, heqjac = heqjac.hs100,
+#                nl.info=TRUE, control = list(xtol_rel = tol,maxeval=3000,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambda,
+#                trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu)
+#     }
+    }
   w1<-w1$par
-  if(sum(real_finance_weight*w1)>1){
-    w1[N+1]=sum(real_finance_weight*w1)-1
+  if(sum(real_finance_weight[which(w1>0)]*w1[which(w1>0)])>1){
+    w1[N+1]=sum(real_finance_weight[which(w1>0)]*w1[which(w1>0)])-1
   }else{
     w1[N+1]=0
-    w1[N]=w1[N]+1-sum(w1)
+    w1[N]=w1[N]+1-sum(real_finance_weight[which(w1>0)]*w1[which(w1>0)])
   }
   method<-rep(method,N+1)  
   weights2<<-data.frame(
@@ -676,14 +730,13 @@ scenario_cost_BN2<-function(assets_num,x_1,k_1,k_2,AA,l,x_downturning,asset_ret,
   }else{
     heqjac.hs100<<-function(x) nl.jacobian(x, eval_h0, heps = 1e-2)
   }
-  if(assets_num>6){
-    tol=1e-4
+  if(is.null(eval_h0)&&is.null(eval_g0)){
+    tol=1e-8
     maxeval1 = maxeval1
     check_derivatives1=FALSE
   }else{
-
-    tol<-1e-8
-    maxeval1 <- maxeval1
+    tol<-1e-3
+    maxeval1 = maxeval1
     check_derivatives1=FALSE
   }
  w1<-auglag(w1, combo_find_w, lower = lower_bound, upper =upper_bound,localsolver = c("slsqp"),
@@ -691,11 +744,11 @@ scenario_cost_BN2<-function(assets_num,x_1,k_1,k_2,AA,l,x_downturning,asset_ret,
               nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),x_downturning=x_downturning,AA=AA,k_2=k_2,k_1=k_1,x_1=x_1,ll=l
            ,w_now=w_now, trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=k,mu=mu )
   w1<-w1$par
-  if(sum(real_finance_weight*w1)>1){
-    w1[N+1]=sum(real_finance_weight*w1)-1
+  if(sum(real_finance_weight[which(w1>0)]*w1[which(w1>0)])>1){
+    w1[N+1]=sum(real_finance_weight[which(w1>0)]*w1[which(w1>0)])-1
   }else{
     w1[N+1]=0
-    w1[N]=w1[N]+1-sum(w1)
+    w1[N]=w1[N]+1-sum(real_finance_weight[which(w1>0)]*w1[which(w1>0)])
   }
   method<-rep(method,N+1)  
   weights2<<-data.frame(
@@ -802,13 +855,13 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
   }else{
     heqjac.hs100<<-function(x) nl.jacobian(x, eval_h0, heps = 1e-2)
   }
-  if(assets_num>6){
-    tol=1e-4
+  if(is.null(eval_h0)&&is.null(eval_g0)){
+    tol=1e-8
     maxeval1 = maxeval1
     check_derivatives1=FALSE
   }else{
-    tol<-1e-8
-    maxeval1 = 1000
+    tol<-1e-3
+    maxeval1 = maxeval1
     check_derivatives1=FALSE
   }
   for(kk in 1:length(method)){
@@ -820,11 +873,11 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
                         nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambdas[i],
                         trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
           w_temp<-w_temp$par
-          if(sum(real_finance_weight*w_temp)>1){
-            w_temp[N+1]=sum(real_finance_weight*w_temp)-1
+          if(sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])>1){
+            w_temp[N+1]=sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])-1
           }else{
             w_temp[N+1]=0
-            w_temp[N]=w_temp[N]+1-sum(w_temp)
+            w_temp[N]=w_temp[N]+1-sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])
           }
           if(kk==1&&i==1&&j==1){
             w_temp<-c(lambdas[i],subjective_ks[j],w_temp)
@@ -844,11 +897,11 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
                         nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambdas[i],
                         trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
           w_temp<-w_temp$par
-          if(sum(real_finance_weight*w_temp)>1){
-            w_temp[N+1]=sum(real_finance_weight*w_temp)-1
+          if(sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])>1){
+            w_temp[N+1]=sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])-1
           }else{
             w_temp[N+1]=0
-            w_temp[N]=w_temp[N]+1-sum(w_temp)
+            w_temp[N]=w_temp[N]+1-sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])
           }
           if(kk==1&&i==1&&j==1){
             w_temp<-c(lambdas[i],subjective_ks[j],w_temp)
@@ -869,11 +922,11 @@ scenario_cost_BN_matrix<-function(method,assets_num,lambdas,asset_ret,asset_var,
                         nl.info=TRUE, control = list(xtol_rel = tol,maxeval=maxeval1,check_derivatives = check_derivatives1),w_now=w_now,beta1=lambdas[i],
                         trans_cost=trans_cost,finan_cost=finan_cost,haircut=haircut,real_finance_weight=real_finance_weight,principal1=principal1,rand2=rand2,loss1=loss1,pro_dict=pro_dict1,k=subjective_ks[j],mu=mu )
           w_temp<-w_temp$par
-          if(sum(real_finance_weight*w_temp)>1){
-            w_temp[N+1]=sum(real_finance_weight*w_temp)-1
+          if(sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])>1){
+            w_temp[N+1]=sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])-1
           }else{
             w_temp[N+1]=0
-            w_temp[N]=w_temp[N]+1-sum(w_temp)
+            w_temp[N]=w_temp[N]+1-sum(real_finance_weight[which(w_temp>0)]*w_temp[which(w_temp>0)])
           }
           if(kk==1&&i==1&&j==1){
             w_temp<-c(lambdas[i],subjective_ks[j],w_temp)

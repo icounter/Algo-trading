@@ -5,6 +5,7 @@ options(warn=-1)
 modes <- getAceModes()
 themes <- getAceThemes()
 MAXIMUM_LOSS<<--99999999999999
+MINIMUM_RET<<-0.00000000001
 trans_generaed<<-0
 haircut<<-c(0,0.9,0,1)
 real_finance_weight<<-c(1,1,1,1)
@@ -102,11 +103,11 @@ hr(),
 titlePanel("Extreme Scenario Correlation Matrix"),
 DT::dataTableOutput("bayesian_matrix_cor_extreme"),
 hr(),
+titlePanel("Overall Correlation Matrix in Bayesian Network"),
+DT::dataTableOutput("bayesian_matrix_cor"),
+hr(),
 titlePanel("Rescaled Correlation Matrix in Bayesian Network"),
 DT::dataTableOutput("bayesian_matrix_cor2"),
-hr(),
-titlePanel("Overal Correlation Matrix in Bayesian Network"),
-DT::dataTableOutput("bayesian_matrix_cor"),
 hr(),
 titlePanel("3.Set Transaction Cost & Finance cost"),
 sidebarLayout(
@@ -198,24 +199,22 @@ fluidRow(
   column(2, sliderInput("sample_number1", label = h3("number of samples"),min = 10000, max = 1000000,step=10000, value =50000)),
   helpText("Subjective Value parameter is the probability you assigned that in the next interval at least one extreme event will happen"),
   column(2, sliderInput("subjective_k", label = h3("Subjective Value"),min = 0.0, max =1.0,step=0.01, value =0.01)),
-  column(2, sliderInput("maxeval", label = h3("maximum evaluation rounds"),min = 0, max =2000,step=100, value =1000)),
+  column(2, sliderInput("maxeval", label = h3("maximum evaluation rounds"),min = 0, max =2000,step=100, value =2000)),
   helpText("maximum evaluation rounds controls the speed for you to find the optimized solution")
 ),hr(),
 fluidRow(
   column(6, aceEditor("convexity_bounds", value="##input inequality bounds here(hint format is g(x)>=0)
-#eval_g0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,finan_cost1=finan_cost,haircut1=haircut,principal11=principal1)
-#{
-#  h<-numeric(1)
-#leverage=sum(w1[which(w1>0)])-1
-# if(leverage<0){
-#  h[1]=1
-# }else{
-#   h[1]<-sum(((1-haircut1)*w1)[which(w1>0)])-leverage
-# }
-#  h[3]<-1-w1[1]-w1[4]
-#  h[2]<-2-sum(w1)
+#  eval_g0 <- function(w1,w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,finan_cost1=finan_cost,haircut1=haircut,real_finance_weight1=real_finance_weight,principal11=principal1)
+#  {
+#    h<-numeric(1)
+#     list1=which(w1<0)
+#    if(length(list1)!=0){
+#      h[1]=w1[length(w1)]-abs(sum(((1-haircut1)*real_finance_weight1*w1)[list1]))-abs(sum((haircut1*w1)[list1]))
+#    }else{
+#     h[1]=1
+#    }
 #  return(h)
-#}")),
+#  }")),
   column(6,aceEditor("linear_bounds", value="##input equality bounds here
 #eval_h0 <- function(w1, w_now1=w_now,beta11=beta1,rand21=rand2,loss11=loss1,pro_dict1=pro_dict,k1=k,trans_cost1=trans_cost,finan_cost1=finan_cost,haircut1=haircut,principal11=principal1)
 #{
@@ -229,13 +228,13 @@ hr(),
 titlePanel("Cumulative Density Function based on Optimized Weights"),
  sidebarLayout(
  sidebarPanel(uiOutput('variables'),
-              sliderInput("subjective_k1", label = h3("Subjective Value For the plot"),min = 0.0, max =1.0,step=0.01, value =0.01)
+              sliderInput("x_range_return", label = h3("Show Return CDF in the range"), min = -1, max = 1, step=0.05,value = c(-0.3, 0.3))
              ),mainPanel(plotOutput("returnplot"))
  ),
 hr(),
 sidebarLayout(
   sidebarPanel(uiOutput('variables2'),
-               sliderInput("subjective_k2", label = h3("Subjective Value For the plot"),min = 0.0, max =1.0,step=0.01, value =0.01)
+               sliderInput("x_range_return2", label = h3("Show Return CDF in the range"), min = -1, max = 1, step=0.05,value = c(-0.3, 0.3))
   ),mainPanel(plotOutput("returnplot2"))
 ),hr(),
 titlePanel("6.Optimize weights table"),

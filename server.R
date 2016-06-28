@@ -17,6 +17,8 @@ library(shinysky)
 library(DT)
 library(rootSolve)
 library(stringr)
+library(graph)
+library(Rgraphviz)
 source("script.R")
 # server.R
 shinyServer(
@@ -159,20 +161,41 @@ shinyServer(
       pro_dict_matrix<-pro_dict3[2:nrow(pro_dict3),]
       name<-rownames(pro_dict_matrix)
       N<-length(name)
-      cor<-diag(N)
-      for(i in 1:(N-1)){
-        for(j in (i+1):N){
-          E1<-sum(pro_dict_prob*pro_dict_matrix[i,])
-          E2<-sum(pro_dict_prob*pro_dict_matrix[j,])
-          sigma1<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
-          sigma2<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
-          cor[i,j]=sum(pro_dict_prob*(pro_dict_matrix[i,]-E1)*(pro_dict_matrix[j,]-E2))/(sigma1*sigma2)
+      M<-50000
+      name<-rownames(pro_dict_matrix)
+      N<-length(name)
+      asset_ret<-as.double(strsplit(input$asset_ret1,",")[[1]])
+      asset_corr<-as.double(strsplit(input$asset_corr1,",")[[1]])
+      asset_vol1<-as.double(strsplit(input$asset_vol1,",")[[1]])
+      asset_var<-(asset_vol1)^2
+      asset_cor<-matrix(1,N,N)
+      asset_cor[upper.tri(asset_cor)]=asset_corr
+      asset_cor[lower.tri(asset_cor)]=t(asset_cor)[lower.tri(asset_cor)]
+      asset_cov<-r2cov(sd =sqrt(asset_var),R = asset_cor)
+      margins_r<-rep("norm",N)
+      paramMargins_r <- list()
+      extreme_stress_loss<-as.double(strsplit(input$extreme_stress_loss,",")[[1]])
+      for(i in 1:N){
+        paramMargins_r[[length(paramMargins_r)+1]] <- list(mean =asset_ret[i], sd =sqrt(asset_var[i]))
+      }
+      rand2<-generate_N_rand(N,asset_corr,margins_r,paramMargins_r,M)
+      order<-as.integer(M*pro_dict_prob/sum(pro_dict_prob))
+      for(i in 1:length(order)){
+        if(i==1){
+          rand2[1:order[i],]<-t(((1-pro_dict_matrix[,i])*t(rand2[1:order[i],])))
+          rand2[1:order[i],]<-t(apply(rand2[1:order[i],],1,function(x) x+as.vector(pro_dict_matrix[,i]*extreme_stress_loss)))
+        }else{
+          rand2[(sum(order[1:(i-1)])+1):(sum(order[1:i])),]<-t(((1-pro_dict_matrix[,i])*t(rand2[(sum(order[1:(i-1)])+1):(sum(order[1:i])),])))
+          rand2[(sum(order[1:(i-1)])+1):(sum(order[1:i])),]<-t(apply(rand2[(sum(order[1:(i-1)])+1):(sum(order[1:i])),],1,function(x) x+as.vector(pro_dict_matrix[,i]*extreme_stress_loss)))
         }
       }
-      for(i in 1:(N-1)){
-        for(j in (i+1):N){
-          cor[j,i]=cor[i,j]
+      pro_dict_matrix<-rand2
+      cor<-cor(pro_dict_matrix)
+      for(i in 1:ncol(cor)){
+        for(j in 1:nrow(cor)){
+          if(is.na(cor[i,j]))  cor[i,j]=0
         }
+          
       }
       cor<-data.frame(cor)
       colnames(cor)<-name
@@ -188,22 +211,42 @@ shinyServer(
       pro_dict3<-pro_dict3[,-1]
       pro_dict_prob<-pro_dict3[1,]
       pro_dict_matrix<-pro_dict3[2:nrow(pro_dict3),]
+      M<-50000
       name<-rownames(pro_dict_matrix)
       N<-length(name)
-      cor<-diag(N)
-      for(i in 1:(N-1)){
-        for(j in (i+1):N){
-          E1<-sum(pro_dict_prob*pro_dict_matrix[i,])
-          E2<-sum(pro_dict_prob*pro_dict_matrix[j,])
-          sigma1<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
-          sigma2<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
-          cor[i,j]=sum(pro_dict_prob*(pro_dict_matrix[i,]-E1)*(pro_dict_matrix[j,]-E2))/(sigma1*sigma2)
+      asset_ret<-as.double(strsplit(input$asset_ret1,",")[[1]])
+      asset_corr<-as.double(strsplit(input$asset_corr1,",")[[1]])
+      asset_vol1<-as.double(strsplit(input$asset_vol1,",")[[1]])
+      asset_var<-(asset_vol1)^2
+      asset_cor<-matrix(1,N,N)
+      asset_cor[upper.tri(asset_cor)]=asset_corr
+      asset_cor[lower.tri(asset_cor)]<-t(asset_cor)[lower.tri(asset_cor)]
+      asset_cov<-r2cov(sd =sqrt(asset_var),R = asset_cor)
+      margins_r<-rep("norm",N)
+      paramMargins_r <- list()
+      extreme_stress_loss<-as.double(strsplit(input$extreme_stress_loss,",")[[1]])
+      for(i in 1:N){
+        paramMargins_r[[length(paramMargins_r)+1]] <- list(mean =asset_ret[i], sd =sqrt(asset_var[i]))
+      }
+      rand<<-generate_N_rand(N,asset_corr,margins_r,paramMargins_r,M)
+      order<-as.integer(M*pro_dict_prob/sum(pro_dict_prob))
+      for(i in 1:length(order)){
+        if(i==1){
+          rand[1:order[i],]<-t(((1-pro_dict_matrix[,i])*t(rand[1:order[i],])))
+          rand[1:order[i],]<-t(apply(rand[1:order[i],],1,function(x) x+as.vector(pro_dict_matrix[,i]*extreme_stress_loss)))
+        }else{
+          rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),]<-t(((1-pro_dict_matrix[,i])*t(rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),])))
+          rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),]<-t(apply(rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),],1,function(x) x+as.vector(pro_dict_matrix[,i]*extreme_stress_loss)))
         }
       }
-      for(i in 1:(N-1)){
-        for(j in (i+1):N){
-          cor[j,i]=cor[i,j]
+      pro_dict_matrix<-rand
+      cor<-diag(N)
+      cor<-cor(pro_dict_matrix)
+      for(i in 1:ncol(cor)){
+        for(j in 1:nrow(cor)){
+          if(is.na(cor[i,j]))  cor[i,j]=0
         }
+        
       }
       cor<-data.frame(cor)
       colnames(cor)<-name
@@ -226,20 +269,39 @@ shinyServer(
       pro_dict_matrix<-pro_dict3[2:nrow(pro_dict3),]
       name<-rownames(pro_dict_matrix)
       N<-length(name)
-      cor<-diag(N)
-      for(i in 1:(N-1)){
-        for(j in (i+1):N){
-          E1<-sum(pro_dict_prob*pro_dict_matrix[i,])
-          E2<-sum(pro_dict_prob*pro_dict_matrix[j,])
-          sigma1<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
-          sigma2<-sqrt(sum(pro_dict_prob*pro_dict_matrix[i,])-E1^2)
-          cor[i,j]=sum(pro_dict_prob*(pro_dict_matrix[i,]-E1)*(pro_dict_matrix[j,]-E2))/(sigma1*sigma2)
+      M<-50000
+      asset_ret<-as.double(strsplit(input$asset_ret1,",")[[1]])
+      asset_corr<-as.double(strsplit(input$asset_corr1,",")[[1]])
+      asset_vol1<-as.double(strsplit(input$asset_vol1,",")[[1]])
+      asset_var<-(asset_vol1)^2
+      asset_cor<-matrix(1,N,N)
+      asset_cor[upper.tri(asset_cor)]=asset_corr
+      asset_cor[lower.tri(asset_cor)]<-t(asset_cor)[lower.tri(asset_cor)]
+      asset_cov<-r2cov(sd =sqrt(asset_var),R = asset_cor)
+      margins_r<-rep("norm",N)
+      paramMargins_r <- list()
+      extreme_stress_loss<-as.double(strsplit(input$extreme_stress_loss,",")[[1]])
+      for(i in 1:N){
+        paramMargins_r[[length(paramMargins_r)+1]] <- list(mean =asset_ret[i], sd =sqrt(asset_var[i]))
+      }
+      rand<-generate_N_rand(N,asset_corr,margins_r,paramMargins_r,M)
+      order<-as.integer(M*pro_dict_prob/sum(pro_dict_prob))
+      for(i in 1:length(order)){
+        if(i==1&&order[i]!=0){
+          rand[1:order[i],]<-t(((1-pro_dict_matrix[,i])*t(rand[1:order[i],])))
+          rand[1:order[i],]<-t(apply(rand[1:order[i],],1,function(x) x+as.vector(pro_dict_matrix[,i]*extreme_stress_loss)))
+        }else if(order[i]!=0){
+          rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),]<-t(((1-pro_dict_matrix[,i])*t(rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),])))
+          rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),]<-t(apply(rand[(sum(order[1:(i-1)])+1):(sum(order[1:i])),],1,function(x) x+as.vector(pro_dict_matrix[,i]*extreme_stress_loss)))
         }
       }
-      for(i in 1:(N-1)){
-        for(j in (i+1):N){
-          cor[j,i]=cor[i,j]
+      pro_dict_matrix<-rand
+      cor<-cor(pro_dict_matrix)
+      for(i in 1:ncol(cor)){
+        for(j in 1:nrow(cor)){
+          if(is.na(cor[i,j]))  cor[i,j]=0
         }
+        
       }
       cor<-data.frame(cor)
       colnames(cor)<-name
@@ -252,8 +314,18 @@ shinyServer(
       N<-as.double(input$assets_num1)
       asset_corr1<-as.double(strsplit(input$asset_corr1,",")[[1]])
       asset_cor<-matrix(1,N,N)
-      asset_cor[upper.tri(asset_cor)]=asset_corr1
-      asset_cor[lower.tri(asset_cor)]=t(asset_cor)[lower.tri(asset_cor)]
+      k=1
+      for(i in 1:(N-1)){
+        for(j in (i+1):(N)){
+          asset_cor[i,j]=asset_corr1[k]
+          k=k+1
+        }
+      }
+      for(i in 1:(N-1)){
+        for(j in (i+1):N){
+          asset_cor[j,i]=asset_cor[i,j]
+        }
+      }
       name<-strsplit(input$asset_name1,",")[[1]]
       asset_cor<-data.frame(asset_cor)
       colnames(asset_cor)<-name
@@ -513,7 +585,7 @@ shinyServer(
         ggplot(data.frame(x=input$x_range),aes(x))+stat_function(fun=function(x)((1-exp(-input$lambda1*x))/input$lambda1),geom='line',aes(colour="exponential utility"))+xlab("return")+ylab("utility value")
       }
       else{
-        ggplot(data.frame(x=input$x_range),aes(x))+stat_function(fun=function(x)(1/(1-input$lambda1)*((1+x)^(1-input$lambda1)-1)),geom='line',aes(colour="exponential utility"))+xlab("return")+ylab("utility value")
+        ggplot(data.frame(x=input$x_range),aes(x))+stat_function(fun=function(x)(1/(1-input$lambda1)*((1+x)^(1-input$lambda1)-1)),geom='line',aes(colour="power utility"))+xlab("return")+ylab("utility value")
       }
     })
     weights2<-eventReactive(input$go2,{
@@ -654,59 +726,83 @@ shinyServer(
 #      #+scale_x_continuous(breaks = round(seq(min(rand3[,M]), max(rand3[,M]), by = 0.1),5))
 #      return(p2)
 #    }else{
-     u<-rep(1,nrow(pro_dict)-1)
+     u<-rep(1,nrow(pro_dict2)-1)
      uu<-diag(length(w_1))
-     pro_dict3<-t(t(pro_dict)[2:ncol(pro_dict),2:nrow(pro_dict)]%*%(loss1*w_1))+tcost
-     pro_dict_loss_matrix<-data.frame(t(pro_dict)[2:ncol(pro_dict),2:nrow(pro_dict)]%*%(loss1*uu)+tcost)
+     pro_dict3<-t(t(pro_dict2)[2:ncol(pro_dict2),2:nrow(pro_dict2)]%*%(loss1*w_1))+tcost+loss1[length(loss1)]*w_1[length(w_1)]
+     pro_dict_loss_matrix<-data.frame(t(pro_dict2)[2:ncol(pro_dict2),2:nrow(pro_dict2)]%*%(loss1*uu))
      rand4=rand3[,M]
      if(M==1){
-       if(input$subjective_k1!=1){
-      Number<-as.integer((input$subjective_k1)/((1-input$subjective_k1)*(1-pro_dict$p0[1]))*nrow(rand3)*pro_dict[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
+       if(input$subjective_k!=1){
+      Number<-as.integer((input$subjective_k)/((1-input$subjective_k)*(1-pro_dict2$p0[1]))*nrow(rand3)*pro_dict2[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
       ecdf_gene<-rep(unique(pro_dict3),Number)
       rand4<-data.frame(c(rand4,ecdf_gene))
       colnames(rand4)<-colnames(rand3)[M]
       p2<-ggplot(rand4, aes(x=rand4)) +
-        stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand4)))/100,to=max(rand4), by = 0.05),5))
-      #+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+        stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(labels=scales::percent,breaks =  seq(from=round(100*input$x_range_return[1])/100,to=input$x_range_return[2], by = 0.05))+geom_vline(xintercept = 0,colour=1)+coord_cartesian(xlim=input$x_range_return)
+      for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.01)){
+        p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+      }
+      for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.05)){
+        p2=p2+geom_vline(xintercept = i,colour=1)
+      }
       return(p2)}else{
-        Number<-as.integer(nrow(rand3)*pro_dict[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
+        Number<-as.integer(nrow(rand3)*pro_dict2[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
         ecdf_gene<-rep(unique(pro_dict3),Number)
         rand4<-data.frame(ecdf_gene)
         colnames(rand4)<-colnames(rand3)[M]
         p2<-ggplot(rand4, aes(x=rand4)) +
-          stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand4)))/100,to=max(rand4), by = 0.05),5))
-        #+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+          stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(labels=scales::percent,breaks =  seq(from=round(100*input$x_range_return[1])/100,to=input$x_range_return[2], by = 0.05))+geom_vline(xintercept = 0,colour=1)+coord_cartesian(xlim=input$x_range_return)
+        for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.01)){
+          p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+        }
+        for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.05)){
+          p2=p2+geom_vline(xintercept = i,colour=1)
+        }
         return(p2)
       }}else if(M!=(length(name)+1)){
-       if(input$subjective_k1!=1){
+       if(input$subjective_k!=1){
        set<-unique(pro_dict_loss_matrix[,M-1])
-       number<-set[which(set!=tcost)]
-       Number<-as.integer((input$subjective_k1)/((1-input$subjective_k1)*(1-pro_dict$p0[1]))*nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])!=tcost),]),"p",""))]))
-       Number1<-as.integer((input$subjective_k1)/((1-input$subjective_k1)*(1-pro_dict$p0[1]))*nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])==tcost),]),"p",""))]))
+       number<-set[which(set!=0)]
+       Number<-as.integer((input$subjective_k)/((1-input$subjective_k)*(1-pro_dict2$p0[1]))*nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])!=0),]),"p",""))]))
+       Number1<-as.integer((input$subjective_k)/((1-input$subjective_k)*(1-pro_dict2$p0[1]))*nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])==0),]),"p",""))]))
        Number<-as.integer(nrow(rand3)/(nrow(rand3)+Number1)*Number)
        ecdf_gene<-rep(number,Number)
       rand4<-data.frame(c(rand4,ecdf_gene))
       colnames(rand4)<-colnames(rand3)[M]
-       p2<-ggplot(rand4, aes(x=rand4)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand4)))/100,to=max(rand4), by = 0.05),5))
-       #+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+       p2<-ggplot(rand4, aes(x=rand4)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(labels=scales::percent,breaks =  seq(from=round(100*input$x_range_return[1])/100,to=input$x_range_return[2], by = 0.05))+geom_vline(xintercept = 0,colour=1)+coord_cartesian(xlim=input$x_range_return)
+       for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.01)){
+         p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+       }
+       for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.05)){
+         p2=p2+geom_vline(xintercept = i,colour=1)
+       }
        return(p2)}else{
          set<-unique(pro_dict_loss_matrix[,M-1])
-         number<-set[which(set!=tcost)]
-         Number<-as.integer(nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])!=tcost),]),"p",""))]))
-         Number2<-as.integer(nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])==tcost),]),"p",""))]))
+         number<-set[which(set!=0)]
+         Number<-as.integer(nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])!=0),]),"p",""))]))
+         Number2<-as.integer(nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M-1])==0),]),"p",""))]))
          Number<-as.integer(nrow(rand3)/Number2*Number)
          ecdf_gene<-rep(number,Number)
          rand4<-data.frame(c(rand4,ecdf_gene))
          colnames(rand4)<-colnames(rand3)[M]
-         p2<-ggplot(rand4, aes(x=rand4)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand4)))/100,to=max(rand4), by = 0.05),5))
-         #+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+         p2<-ggplot(rand4, aes(x=rand4)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(labels=scales::percent,breaks =  seq(from=round(100*input$x_range_return[1])/100,to=input$x_range_return[2], by = 0.05))+geom_vline(xintercept = 0,colour=1)+coord_cartesian(xlim=input$x_range_return)
+         for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.01)){
+           p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+         }
+         for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.05)){
+           p2=p2+geom_vline(xintercept = i,colour=1)
+         }
          return(p2)}
      }else{
        rand4<-rand3[,M]
         p2<-ggplot(rand3, aes(x=rand4)) +
-         stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand3)[M])+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))
-        #+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand4)))/100,to=max(rand4), by = 0.05),5))
-        #+scale_x_continuous(breaks = round(seq(min(rand4), max(rand4), by = 0.1),5))
+         stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand3)[M])+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+geom_vline(xintercept = 0,colour=1)+scale_x_continuous(labels=scales::percent,breaks = seq(from=round(100*input$x_range_return[1])/100,to=input$x_range_return[2], by = 0.05))+coord_cartesian(xlim=input$x_range_return)
+        for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.01)){
+          p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+        }
+        for(i in seq(from=input$x_range_return[1],to=input$x_range_return[2], by = 0.05)){
+          p2=p2+geom_vline(xintercept = i,colour=1)
+        }
        return(p2)
      }
    })
@@ -724,25 +820,25 @@ shinyServer(
      M=c(M,which(colnames(rand3)==input$see_return2[i]))
    }
    M<-M[-1]
-   u<-rep(1,nrow(pro_dict)-1)
+   u<-rep(1,nrow(pro_dict2)-1)
    uu<-diag(length(w_1))
-   pro_dict3<-t(t(pro_dict)[2:ncol(pro_dict),2:nrow(pro_dict)]%*%(loss1*w_1))+tcost
-   pro_dict_loss_matrix<-data.frame(t(pro_dict)[2:ncol(pro_dict),2:nrow(pro_dict)]%*%(loss1*uu)+tcost)
+   pro_dict3<-t(t(pro_dict2)[2:ncol(pro_dict2),2:nrow(pro_dict2)]%*%(loss1*w_1))+tcost+loss1[length(loss1)]*w_1[length(w_1)]
+   pro_dict_loss_matrix<-data.frame(t(pro_dict2)[2:ncol(pro_dict2),2:nrow(pro_dict2)]%*%(loss1*uu))
    rand5<-c()
    #p2<-ggplot(rand4, aes(x=rand4))+stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Cumulative Density Function")
    for(jk in 1:length(M)){
      rand4=rand3[,M[jk]]
-     if(input$subjective_k2!=1){
+     if(input$subjective_k!=1){
        if(M[jk]==1){
-         Number<-as.integer((input$subjective_k2)/((1-input$subjective_k2)*(1-pro_dict$p0[1]))*nrow(rand3)*pro_dict[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
+         Number<-as.integer((input$subjective_k)/((1-input$subjective_k)*(1-pro_dict2$p0[1]))*nrow(rand3)*pro_dict2[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
          ecdf_gene<-rep(unique(pro_dict3),Number)
          rand4<-data.frame(c(rand4,ecdf_gene))
          colnames(rand4)<-colnames(rand3)[M[jk]]
        }else if(M[jk]!=(length(name)+1)){
          set<-unique(pro_dict_loss_matrix[,M[jk]-1])
-         number<-set[which(set!=tcost)]
-         Number<-as.integer((input$subjective_k2)/((1-input$subjective_k2)*(1-pro_dict$p0[1]))*nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])!=tcost),]),"p",""))]))
-         Number1<-as.integer((input$subjective_k2)/((1-input$subjective_k2)*(1-pro_dict$p0[1]))*nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])==tcost),]),"p",""))]))
+         number<-set[which(set!=0)]
+         Number<-as.integer((input$subjective_k)/((1-input$subjective_k)*(1-pro_dict2$p0[1]))*nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])!=0),]),"p",""))]))
+         Number1<-as.integer((input$subjective_k)/((1-input$subjective_k)*(1-pro_dict2$p0[1]))*nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])==0),]),"p",""))]))
          Number<-as.integer(nrow(rand3)/(nrow(rand3)+Number1)*Number)
          ecdf_gene<-rep(number,Number)
          rand4<-data.frame(c(rand4,ecdf_gene))
@@ -759,15 +855,15 @@ shinyServer(
          length_level_list<-c(length_level_list,length(as.vector(as.matrix(rand4))))
        }}else{
        if(M[jk]==1){
-         Number<-as.integer(nrow(rand3)*pro_dict[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
+         Number<-as.integer(nrow(rand3)*pro_dict2[1,1+as.double(str_replace_all(colnames(unique(pro_dict3)),"p",""))])
          ecdf_gene<-rep(unique(pro_dict3),Number)
          rand4<-data.frame(ecdf_gene)
          colnames(rand4)<-colnames(rand3)[M[jk]]
        }else if(M[jk]!=(length(name)+1)){
          set<-unique(pro_dict_loss_matrix[,M[jk]-1])
-         number<-set[which(set!=tcost)]
-         Number<-as.integer(nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])!=tcost),]),"p",""))]))
-         Number2<-as.integer(nrow(rand3)*sum(pro_dict[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])==tcost),]),"p",""))]))
+         number<-set[which(set!=0)]
+         Number<-as.integer(nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])!=0),]),"p",""))]))
+         Number2<-as.integer(nrow(rand3)*sum(pro_dict2[1,1+as.double(str_replace_all(rownames(pro_dict_loss_matrix[which((pro_dict_loss_matrix[,M[jk]-1])==0),]),"p",""))]))
          Number<-as.integer(nrow(rand3)/Number2*Number)
          ecdf_gene<-rep(number,Number)
          rand4<-data.frame(c(rand4,ecdf_gene))
@@ -787,9 +883,21 @@ shinyServer(
    gl=as.factor(rep(name_level_list,length_level_list))
    df<-data.frame(x=rand5,assets=gl)
    if(length(M)==1&M==(length(name)+1)){
-     p2<-ggplot(df, aes(x,colour=assets)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))
+     p2<-ggplot(df, aes(x,colour=assets)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+geom_vline(xintercept = 0,colour=1)+scale_x_continuous(labels=scales::percent,breaks = seq(from=round(100*input$x_range_return2[1])/100,to=input$x_range_return2[2], by = 0.05))+coord_cartesian(xlim=input$x_range_return2)
+     for(i in seq(from=input$x_range_return2[1],to=input$x_range_return2[2], by = 0.01)){
+       p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+     }
+     for(i in seq(from=input$x_range_return2[1],to=input$x_range_return2[2], by = 0.05)){
+       p2=p2+geom_vline(xintercept = i,colour=1)
+     }
    }else{
-   p2<-ggplot(df, aes(x,colour=assets)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(breaks = round(seq(from=round(100*(min(rand5)))/100,to=max(rand5), by = 0.05),5))
+   p2<-ggplot(df, aes(x,colour=assets)) +stat_ecdf(geom="step")+theme_bw()+xlab(colnames(rand4))+ylab("Return Cumulative Density Function")+scale_y_continuous(breaks = round(seq(0,1, by = 0.05),5))+scale_x_continuous(labels=scales::percent,breaks = seq(from=round(100*input$x_range_return2[1])/100,to=input$x_range_return2[2], by = 0.05))+geom_vline(xintercept = 0,colour=1)+coord_cartesian(xlim=input$x_range_return2)
+   for(i in seq(from=input$x_range_return2[1],to=input$x_range_return2[2], by = 0.01)){
+     p2=p2+geom_vline(xintercept = i,colour=1,linetype="dotted")
+   }
+   for(i in seq(from=input$x_range_return2[1],to=input$x_range_return2[2], by = 0.05)){
+     p2=p2+geom_vline(xintercept = i,colour=1)
+   }
    }
    return(p2)
    })
